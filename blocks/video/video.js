@@ -1,6 +1,3 @@
-// import { decorateIcons } from '../../scripts/lib-franklin.js';
-// import { preloadLCPImage } from '../../scripts/scripts.js';
-
 function decorateTeaserPicture(teaserPicture, target) {
   teaserPicture.parentElement.classList.add('video-cover');
   target.appendChild(teaserPicture.parentElement);
@@ -55,6 +52,7 @@ function decorateTeaser(video, teaserPicture, target) {
   videoTag.classList.add('video-cover');
   videoTag.toggleAttribute('muted', true);
   videoTag.toggleAttribute('loop', true);
+  videoTag.setAttribute('controls', true);
   videoTag.setAttribute('title', video.title);
 
   const mql = window.matchMedia('only screen and (max-width: 768px)');

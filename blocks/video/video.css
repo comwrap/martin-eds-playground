@@ -16,7 +16,7 @@ main>.section.video-container {
     max-width: unset;
   }
   
-  .video-hero {
+  .video {
     position: relative;
     overflow: hidden;
     background-color: #53565a;
@@ -24,7 +24,7 @@ main>.section.video-container {
     height: calc(100vh - var(--nav-height));
   }
   
-  .video-hero .video-hero-content {
+  .video .video-content {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -41,21 +41,21 @@ main>.section.video-container {
     z-index: 2;
   }
   
-  .video-hero .video-hero-title {
+  .video .video-title {
     font-size: 4rem;
     line-height: 1;
     text-transform: uppercase;
     margin: 0;
   }
   
-  .video-hero .video-hero-description {
+  .video .video-description {
     font-size: 1.25rem;
     font-weight: 400;
     line-height: 1.5;
     margin: 0;
   }
   
-  .video-hero .video-hero-button:any-link {
+  .video .video-button:any-link {
     display: block;
     background-color: #fff;
     color: #141411;
@@ -68,7 +68,7 @@ main>.section.video-container {
     text-decoration: none;
   }
   
-  .video-hero>picture {
+  .video>picture {
     display: block;
     position: absolute;
     top: 0;
@@ -78,21 +78,21 @@ main>.section.video-container {
     z-index: 1;
   }
   
-  .video-hero>picture img {
+  .video>picture img {
     width: 100%;
     height: 100%;
     object-fit: cover;
   }
   
-  .video-component picture,
-  .video-component picture img {
+  .video picture,
+  .video picture img {
     display: block;
     width: 100%;
     height: 100%;
   }
   
-  .video-hero video,
-  .video-hero .vjs-poster img {
+  .video video,
+  .video .vjs-poster img {
     object-fit: cover;
   }
   
