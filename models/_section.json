@@ -31,8 +31,16 @@
           "label": "Style",
           "options": [
             {
-              "name": "Highlight",
-              "value": "highlight"
+              "name": "Default",
+              "value": "default"
+            },
+            {
+              "name": "Dark",
+              "value": "dark"
+            },
+            {
+              "name": "Light",
+              "value": "light"
             }
           ]
         }
@@ -46,11 +54,17 @@
         "text",
         "image",
         "button",
+        "custom-button",
         "title",
         "hero",
         "cards",
         "columns",
-        "fragment"
+        "fragment",
+        "articlefeed",
+        "carousel",
+        "accordion",
+        "download",
+        "teaser"
       ]
     }
   ]

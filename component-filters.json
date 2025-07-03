@@ -2,7 +2,8 @@
   {
     "id": "main",
     "components": [
-      "section"
+      "section",
+      "marginal"
     ]
   },
   {
@@ -11,17 +12,35 @@
       "text",
       "image",
       "button",
+      "custom-button",
       "title",
       "hero",
       "cards",
       "columns",
-      "fragment"
+      "fragment",
+      "articlefeed",
+      "carousel",
+      "accordion",
+      "download",
+      "teaser"
+    ]
+  },
+  {
+    "id": "accordion",
+    "components": [
+      "accordionitem"
     ]
   },
   {
     "id": "cards",
     "components": [
       "card"
+    ]
+  },
+  {
+    "id": "carousel",
+    "components": [
+      "carouselitem"
     ]
   },
   {
