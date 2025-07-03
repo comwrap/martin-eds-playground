@@ -21,7 +21,7 @@ main>.section.video-container {
     overflow: hidden;
     background-color: #53565a;
     width: 100%;
-    height: calc(100vh - var(--nav-height));
+    height: auto;
   }
   
   .video .video-content {
