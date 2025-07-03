@@ -64,7 +64,12 @@
         "carousel",
         "accordion",
         "download",
-        "teaser"
+        "teaser",
+        "quote",
+        "events",
+        "table",
+        "breadcrumbs",
+        "video"
       ]
     }
   ]
