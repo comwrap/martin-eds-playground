@@ -6,6 +6,7 @@ import {
   decorateSections,
   decorateBlocks,
   decorateTemplateAndTheme,
+  getMetadata,
   waitForFirstImage,
   loadSection,
   loadSections,
@@ -71,6 +72,10 @@ function buildAutoBlocks() {
   }
 }
 
+export function generateUUID() {
+  return Math.floor(1e3 + Math.random() * 9e3);
+}
+
 /**
  * Decorates the main element.
  * @param {Element} main The main element
@@ -121,8 +126,11 @@ async function loadLazy(doc) {
   const element = hash ? doc.getElementById(hash.substring(1)) : false;
   if (hash && element) element.scrollIntoView();
 
-  loadHeader(doc.querySelector('header'));
-  loadFooter(doc.querySelector('footer'));
+  const template = getMetadata('template');
+  if (template !== 'library') {
+    loadHeader(doc.querySelector('header'));
+    loadFooter(doc.querySelector('footer'));
+  }
 
   loadCSS(`${window.hlx.codeBasePath}/styles/lazy-styles.css`);
   loadFonts();
