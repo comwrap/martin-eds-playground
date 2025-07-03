@@ -2,8 +2,8 @@
 Your project's description...
 
 ## Environments
-- Preview: https://main--{repo}--{owner}.aem.page/
-- Live: https://main--{repo}--{owner}.aem.live/
+- Preview: https://main--martin-eds-playground--comwrap.aem.page/
+- Live: https://main--martin-eds-playground--comwrap.aem.live/
 
 ## Documentation
 
