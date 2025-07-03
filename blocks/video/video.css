@@ -93,7 +93,8 @@ main>.section.video-container {
   
   .video video,
   .video .vjs-poster img {
-    object-fit: cover;
+    height: auto;
+    width: 100%;
   }
   
   .custom-play-button {

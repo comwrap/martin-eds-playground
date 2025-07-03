@@ -50,9 +50,7 @@ function decorateTeaser(video, teaserPicture, target) {
   }
 
   videoTag.classList.add('video-cover');
-  videoTag.toggleAttribute('muted', true);
-  videoTag.toggleAttribute('loop', true);
-  videoTag.setAttribute('controls', true);
+  videoTag.setAttribute('controls');
   videoTag.setAttribute('title', video.title);
 
   const mql = window.matchMedia('only screen and (max-width: 768px)');
