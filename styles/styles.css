@@ -307,7 +307,6 @@ button {
 a:any-link {
     color: var(--link-color);
     text-decoration: none;
-    word-break: break-word;
 }
 
 a:hover {
@@ -481,9 +480,11 @@ main .section.highlight {
                 width: 70%;
                 right: 0;
             }
+
             .fragment-wrapper {
                 padding: 0;
                 margin-right: 30px;
+                
                 img:first-of-type {
                     display: flex;
                     justify-content: center;
@@ -492,6 +493,7 @@ main .section.highlight {
                     max-height: 40px;
                 }
             }
+
             .accordion-wrapper {
                 .accordion-trigger {
                     padding-top: 0;

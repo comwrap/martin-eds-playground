@@ -4,7 +4,7 @@
 }
 
 .download-wrapper-inner {
-  background: rgba(var(--background-color), 1);
+  background: rgb(var(--background-color));
   border-radius: 0.5rem;
   box-shadow: 0 2px rgb(var(--color-pure-black));
   padding: 2rem;
@@ -14,14 +14,14 @@
   font-size: var(--heading-font-size-m, 1.75rem);
   font-weight: 600;
   margin: 0 0 1rem;
-  color: rgba(var(--text-color), 1);
+  color: rgb(var(--text-color));
 }
 
 .download-wrapper .download-description {
   font-size: var(--body-size-m, 1rem);
   line-height: 1.5;
   margin-bottom: 1.5rem;
-  color: rgba(var(--text-color), 1);
+  color: rgb(var(--text-color));
 }
 
 .download-wrapper .download-description p {
@@ -37,8 +37,8 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1.5rem;
-  background: rgba(var(--button-primary), 1);
-  color: rgba(var(--color-pure-white), 1);
+  background: rgb(var(--button-primary));
+  color: rgb(var(--color-pure-white));
   text-decoration: none;
   border-radius: 0.25rem;
   font-weight: 500;
@@ -47,7 +47,7 @@
 
 .download-wrapper .download-button:hover, 
 .download-wrapper .download-button:focus {
-  background: rgba(var(--button-primary-hover), 1);
+  background: rgb(var(--button-primary-hover));
   text-decoration: none;
 }
 

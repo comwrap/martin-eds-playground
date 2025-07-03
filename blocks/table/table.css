@@ -15,11 +15,13 @@
     font-size: var(--body-font-size-s);
   }
 }
+
 @media (width >= 900px) {
   .table.block table {
     font-size: var(--body-size-m);
   }
 }
+
 .table.block table thead tr {
   border-top: 2px solid;
   border-bottom: 2px solid;

@@ -5,16 +5,19 @@
   flex-direction: column;
   margin: 1rem 0;
 }
+
 .quote blockquote {
   margin: 16px;
   text-indent: 0;
 }
+
 .quote > div:last-child > div {
   margin: 0 16px;
   font-size: small;
   font-style: italic;
   position: relative;
 }
+
 .quote > div:last-child > div::after {
   content: "";
   display: block;

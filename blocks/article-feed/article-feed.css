@@ -1,7 +1,7 @@
 .article {
   border: 1px solid rgb(var(--color-darker-gray));
-  background: rgba(var(--color-pure-black), 1);
-  color: rgba(var(--color-pure-white), 1);
+  background: rgb(var(--color-pure-black));
+  color: rgb(var(--color-pure-white));
   margin-bottom: 1.25rem;
   text-decoration: unset;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
@@ -17,8 +17,8 @@
 
 .article-body {
   display: flex;
-  justify-content: flex-start;
-  align-items: space-between;
+  justify-content: space-between;
+  align-items: flex-start;
   flex-flow: column nowrap;
   gap: 0.625rem;
   padding-inline: 1.25rem;
