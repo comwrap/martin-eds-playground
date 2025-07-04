@@ -213,6 +213,10 @@ body {
     line-height: 1.6;
 }
 
+body * {
+    box-sizing: border-box;
+}
+
 body.appear {
     display: block;
 }
@@ -388,7 +392,7 @@ main > .section {
 
 main > .section > div {
     max-width: 1200px;
-    margin: auto;
+    margin: 0;
     padding: 0 24px;
 }
 
@@ -409,6 +413,7 @@ main > .section:first-of-type {
 @media (width >= 900px) {
     main > .section > div {
         padding: 0 32px;
+        margin: 0 auto;
     }
     
     /* Responsive padding for wrapper elements */

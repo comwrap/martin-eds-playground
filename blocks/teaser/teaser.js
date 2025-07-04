@@ -1,32 +1,50 @@
-import { setBlockItemOptions, moveClassToTargetedChild } from '../../scripts/utils.js';
+import { moveClassToTargetedChild } from '../../scripts/utils.js';
 import { renderButton } from '../../components/button/button.js';
-import { createOptimizedPicture } from '../../scripts/aem.js';
 
 export default function decorate(block) {
-  const blockItemsOptions = [];
-  const blockItemMap = [
-    { name: 'title' },
-    { name: 'description' },
-    { name: 'image' },
-    { name: 'link' },
-    { name: 'label' },
-    { name: 'target' },
-  ];
-  setBlockItemOptions(block, blockItemMap, blockItemsOptions);
-  const config = blockItemsOptions[0] || {};
+  const [
+    title,
+    description,
+    image,
+    link,
+    label,
+    target,
+  ] = Array.from(block.children)
+    .map((row, index) => {
+      switch (index) {
+        case 0: // Title
+        case 1: // Description
+        case 3: // Link
+        case 4: // Label
+        case 5: // Target
+        { // Read value and remove row from the DOM
+          const value = row.textContent.trim();
+          row.remove();
+          return value;
+        }
+        case 2: // Image
+        { // Get the picture element and remove row from the DOM
+          const picture = row.querySelector('picture');
+          row.remove();
+          return picture;
+        }
+        default:
+          return '';
+      }
+    });
 
   const wrapper = document.createElement('div');
   wrapper.className = 'teaser-block';
 
   const imageDiv = document.createElement('div');
   imageDiv.className = 'teaser-image';
-  if (config.image) {
-    const optimizedPic = createOptimizedPicture(config.image, config.imageAlt || 'Teaser Image');
-    imageDiv.appendChild(optimizedPic);
+
+  if (image) {
+    imageDiv.appendChild(image);
   } else {
     const img = document.createElement('img');
     img.src = 'https://via.placeholder.com/400x200';
-    img.alt = config.imageAlt || 'Teaser Image';
+    img.alt = 'Teaser Image';
     imageDiv.appendChild(img);
   }
 
@@ -35,19 +53,19 @@ export default function decorate(block) {
 
   const titleEl = document.createElement('h2');
   titleEl.className = 'teaser-title';
-  titleEl.textContent = config.title || '';
+  titleEl.textContent = title || '';
 
   const descEl = document.createElement('p');
   descEl.className = 'teaser-description';
-  descEl.textContent = config.description || '';
+  descEl.textContent = description || '';
 
   const buttonDiv = document.createElement('div');
   buttonDiv.className = 'teaser-button';
-  if (config.label) {
+  if (label) {
     buttonDiv.appendChild(renderButton({
-      link: config.link,
-      label: config.label,
-      target: config.target,
+      link,
+      label,
+      target,
       block,
     }));
     moveClassToTargetedChild(block, buttonDiv.querySelector('.button'));
