@@ -447,6 +447,79 @@
     ]
   },
   {
+    "id": "commerce-teaser",
+    "fields": [
+      {
+        "component": "reference",
+        "name": "image",
+        "label": "Product Image",
+        "multi": false,
+        "required": false,
+        "valueType": "string",
+        "referenceType": "image"
+      },
+      {
+        "component": "text",
+        "name": "title",
+        "label": "Product Title",
+        "required": true,
+        "valueType": "string",
+        "maxLength": 60,
+        "placeholder": "Enter product title (max 60 characters)"
+      },
+      {
+        "component": "text",
+        "name": "price",
+        "label": "Product Price",
+        "required": true,
+        "valueType": "string",
+        "placeholder": "e.g., $99.99, €49.00"
+      },
+      {
+        "component": "richtext",
+        "name": "description",
+        "label": "Product Description",
+        "required": false,
+        "valueType": "string",
+        "maxLength": 150,
+        "placeholder": "Brief product description (max 150 characters)"
+      },
+      {
+        "component": "text",
+        "name": "link",
+        "label": "Product Link",
+        "required": true,
+        "valueType": "url",
+        "placeholder": "https://example.com/product"
+      },
+      {
+        "component": "select",
+        "name": "linkTarget",
+        "label": "Link Target",
+        "valueType": "string",
+        "value": "_blank",
+        "options": [
+          {
+            "name": "New Window",
+            "value": "_blank"
+          },
+          {
+            "name": "Same Window",
+            "value": "_self"
+          }
+        ]
+      },
+      {
+        "component": "text",
+        "name": "linkLabel",
+        "label": "Button Label",
+        "valueType": "string",
+        "value": "Shop Now",
+        "placeholder": "e.g., Shop Now, View Product"
+      }
+    ]
+  },
+  {
     "id": "custom-button",
     "fields": [
       {
