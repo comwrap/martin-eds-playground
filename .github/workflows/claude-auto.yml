@@ -61,11 +61,18 @@ jobs:
           git config --global user.email "actions-bot@github.com"
           npm install -g @anthropic-ai/claude-code
 
-      - name: 4. Set Workspace Permissions for Non-Root User
+      - name: 4. Install Project Dependencies
         run: |
+          echo "Installing project dependencies from package.json..."
+          npm install
+          echo "Dependencies installed."
+
+      - name: 5. Set Workspace Permissions for Non-Root User
+        run: |
+          # The node user needs access to the node_modules installed in the previous step
           chown -R node:node "$GITHUB_WORKSPACE"
 
-      - name: 5. Execute Main AI, Build, and Git Logic
+      - name: 6. Execute Main AI, Build, and Git Logic
         id: main_script
         shell: bash
         run: |
@@ -84,34 +91,24 @@ jobs:
           IMAGES_WERE_DOWNLOADED=false
           
           if [ -n "$JIRA_IMAGE_URLS" ] && [ "$JIRA_IMAGE_URLS" != "none" ] && [ -n "$JIRA_IMAGE_FILENAMES" ] && [ "$JIRA_IMAGE_FILENAMES" != "none" ]; then
-            echo "Creating image directory: ./jira-images"
-            mkdir -p jira-images
-            IMAGES_WERE_DOWNLOADED=true
+            mkdir -p jira-images && IMAGES_WERE_DOWNLOADED=true
             IFS=',' read -ra IMAGE_URL_ARRAY <<< "$JIRA_IMAGE_URLS"
             IFS=',' read -ra IMAGE_FILENAME_ARRAY <<< "$JIRA_IMAGE_FILENAMES"
             for (( i=0; i<${#IMAGE_URL_ARRAY[@]}; i++ )); do
-              IMAGE_INDEX=$((i + 1))
-              IMG_URL=$(echo "${IMAGE_URL_ARRAY[$i]}" | xargs) 
-              ORIGINAL_FILENAME_FROM_JIRA=$(echo "${IMAGE_FILENAME_ARRAY[$i]}" | xargs)
-              if [ -z "$IMG_URL" ] || [ -z "$ORIGINAL_FILENAME_FROM_JIRA" ]; then continue; fi
-              SAFE_FILENAME=$(echo "$ORIGINAL_FILENAME_FROM_JIRA" | sed 's/[^a-zA-Z0-9._-]/_/g')
-              echo "Downloading image ${IMAGE_INDEX} to jira-images/${SAFE_FILENAME}"
+              SAFE_FILENAME=$(echo "${IMAGE_FILENAME_ARRAY[$i]}" | xargs | sed 's/[^a-zA-Z0-9._-]/_/g')
+              IMG_URL=$(echo "${IMAGE_URL_ARRAY[$i]}" | xargs)
+              if [ -z "$IMG_URL" ] || [ -z "$SAFE_FILENAME" ]; then continue; fi
+              echo "Downloading image to jira-images/${SAFE_FILENAME}"
               HTTP_STATUS=$(curl -sSL -w "%{http_code}" -o "jira-images/${SAFE_FILENAME}" -u "${JIRA_API_USER}:${JIRA_API_TOKEN}" "$IMG_URL")
               if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 300 ]; then
-                echo "Error downloading image ${IMAGE_INDEX} (HTTP Status: $HTTP_STATUS)."
-                rm -f "jira-images/${SAFE_FILENAME}"
+                echo "Error downloading image (HTTP Status: $HTTP_STATUS)." && rm -f "jira-images/${SAFE_FILENAME}"
               fi
             done
-          else
-            echo "No Jira image URLs provided. Skipping image processing."
           fi
           
           echo "========================================================================"
           echo "=== 3. CLAUDE EXECUTION ==="
           echo "========================================================================"
-          echo "Using model: $CLAUDE_MODEL"
-          echo "Final Claude command arguments: ${CLAUDE_CMD_ARGS[*]}"
-          echo "--- Passing full prompt from N8N to Claude's stdin as non-root user 'node' ---"
           runuser -u node -- claude "${CLAUDE_CMD_ARGS[@]}" <<< "$CLAUDE_PROMPT"
           echo "Claude execution complete."
           
@@ -119,17 +116,13 @@ jobs:
           echo "=== 4. CLEANING UP DOWNLOADED IMAGES ===" 
           echo "========================================================================"
           if [ "$IMAGES_WERE_DOWNLOADED" = true ]; then
-              echo "Removing ./jira-images directory..."
-              rm -rf jira-images
-          else
-              echo "No images were downloaded, skipping cleanup."
+              rm -rf jira-images && echo "Removed ./jira-images directory."
           fi
           
           echo "========================================================================"
           echo "=== 5. COMPILING EDS MODELS (npm run build:json) ===" 
           echo "========================================================================"
-          # This command builds the necessary JSON models after AI changes.
-          # The script will exit if this build step fails.
+          # This command requires local dependencies to be installed first.
           npm run build:json
           echo "EDS Models build completed."
 
@@ -151,9 +144,6 @@ jobs:
         if: steps.main_script.outputs.changes_pushed == 'true'
         shell: bash
         run: |
-          echo "========================================================================"
-          echo "=== 7. NOTIFYING N8N FOR PULL REQUEST ==="
-          echo "========================================================================"
           FEATURE_BRANCH_NAME="feature/$TICKET_ID"; LATEST_COMMIT_SHA=$(git rev-parse HEAD); REPO_OWNER=$(echo "$GH_REPO" | cut -d'/' -f1); REPO_NAME=$(echo "$GH_REPO" | cut -d'/' -f2); SANITIZED_BRANCH_NAME=$(echo "$FEATURE_BRANCH_NAME" | sed 's/\//-/g'); PREVIEW_URL="https://$SANITIZED_BRANCH_NAME--$REPO_NAME--$REPO_OWNER.hlx.page"; PR_TITLE="feat($TICKET_ID): Implement feature $TICKET_ID (AI Assisted)"; PR_BODY=$(cat <<EOF
           This Pull Request was automatically generated by the Claude AI Developer to implement ticket **$TICKET_ID**.
 
