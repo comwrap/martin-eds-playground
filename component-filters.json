@@ -23,6 +23,7 @@
       "accordion",
       "download",
       "teaser",
+      "commerce-teaser",
       "quote",
       "events",
       "table",
@@ -62,6 +63,10 @@
       "button",
       "title"
     ]
+  },
+  {
+    "id": "commerce-teaser",
+    "components": []
   },
   {
     "id": "events",

@@ -1,0 +1,193 @@
+.commerce-teaser-wrapper {
+  display: flex;
+  justify-content: center;
+  padding: var(--spacing-m) 0;
+}
+
+.commerce-teaser-card {
+  position: relative;
+  background: var(--background-color);
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  overflow: hidden;
+  max-width: 400px;
+  width: 100%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.commerce-teaser-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.commerce-teaser-link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.commerce-teaser-image {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  aspect-ratio: 4 / 3;
+  background-color: #f5f5f5;
+}
+
+.commerce-teaser-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.3s ease;
+}
+
+.commerce-teaser-card:hover .commerce-teaser-image img {
+  transform: scale(1.05);
+}
+
+.commerce-teaser-content {
+  padding: var(--spacing-m);
+}
+
+.commerce-teaser-title {
+  margin: 0 0 var(--spacing-xs) 0;
+  font-size: var(--heading-font-size-s);
+  font-weight: var(--font-bold);
+  color: var(--text-color);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.commerce-teaser-price {
+  margin: 0 0 var(--spacing-s) 0;
+  font-size: var(--heading-font-size-m);
+  font-weight: var(--font-bold);
+  color: var(--link-color);
+  letter-spacing: -0.02em;
+}
+
+.commerce-teaser-description {
+  margin: 0 0 var(--spacing-m) 0;
+  font-size: var(--body-font-size-s);
+  color: var(--text-color);
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.commerce-teaser-button {
+  margin-top: var(--spacing-m);
+}
+
+.commerce-teaser-cta {
+  display: inline-block;
+  padding: 10px 24px;
+  background-color: var(--link-color);
+  color: var(--background-color);
+  text-decoration: none;
+  border-radius: 4px;
+  font-weight: var(--font-bold);
+  font-size: var(--body-font-size-s);
+  transition: background-color 0.3s ease, transform 0.2s ease;
+  border: none;
+  cursor: pointer;
+  text-align: center;
+  width: 100%;
+}
+
+.commerce-teaser-cta:hover {
+  background-color: var(--link-hover-color);
+  transform: translateY(-1px);
+}
+
+.commerce-teaser-cta:focus {
+  outline: 2px solid var(--link-color);
+  outline-offset: 2px;
+}
+
+.commerce-teaser-cta:active {
+  transform: translateY(0);
+}
+
+/* Grid layout for multiple commerce teasers */
+.section.commerce-teaser-container > .default-content-wrapper {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--spacing-l);
+  padding: var(--spacing-l) 0;
+}
+
+/* Responsive adjustments */
+@media (min-width: 768px) {
+  .commerce-teaser-wrapper {
+    padding: var(--spacing-l) 0;
+  }
+
+  .commerce-teaser-content {
+    padding: var(--spacing-l);
+  }
+
+  .commerce-teaser-title {
+    font-size: var(--heading-font-size-m);
+  }
+
+  .commerce-teaser-price {
+    font-size: var(--heading-font-size-l);
+  }
+
+  .commerce-teaser-description {
+    font-size: var(--body-font-size-m);
+  }
+}
+
+@media (min-width: 1024px) {
+  .commerce-teaser-card {
+    max-width: 420px;
+  }
+}
+
+/* Accessibility improvements */
+@media (prefers-reduced-motion: reduce) {
+  .commerce-teaser-card,
+  .commerce-teaser-image img,
+  .commerce-teaser-cta {
+    transition: none;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .commerce-teaser-card {
+    border-width: 2px;
+  }
+
+  .commerce-teaser-cta {
+    border: 2px solid currentColor;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .commerce-teaser-card {
+    background: var(--dark-background-color, #1a1a1a);
+    border-color: #444;
+  }
+
+  .commerce-teaser-title,
+  .commerce-teaser-description {
+    color: var(--dark-text-color, #e0e0e0);
+  }
+
+  .commerce-teaser-image {
+    background-color: #2a2a2a;
+  }
+}
