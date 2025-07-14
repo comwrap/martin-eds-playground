@@ -1,0 +1,217 @@
+.commerce-teaser-wrapper {
+  width: 100%;
+  max-width: 100%;
+}
+
+.commerce-teaser-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--background-color);
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px #0000000a;
+  overflow: hidden;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.commerce-teaser-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 12px #00000014;
+}
+
+.commerce-teaser-link {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  text-decoration: none;
+}
+
+.commerce-teaser-image {
+  width: 100%;
+  line-height: 0;
+  overflow: hidden;
+}
+
+.commerce-teaser-image img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  display: block;
+}
+
+.commerce-teaser-content {
+  position: relative;
+  padding: 24px;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.commerce-teaser-title {
+  margin: 0 0 12px 0;
+  font-size: var(--heading-font-size-s);
+  font-weight: var(--font-bold);
+  color: var(--text-color);
+  line-height: 1.3;
+}
+
+.commerce-teaser-price {
+  margin: 0 0 16px 0;
+  font-size: 28px;
+  font-weight: var(--font-bold);
+  color: var(--link-color);
+  letter-spacing: -0.5px;
+}
+
+.commerce-teaser-description {
+  margin: 0 0 24px 0;
+  font-size: var(--body-font-size-m);
+  color: var(--text-color);
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.commerce-teaser-button-container {
+  margin-top: auto;
+  position: relative;
+  z-index: 2;
+}
+
+.commerce-teaser-button {
+  display: inline-block;
+  padding: 12px 24px;
+  background-color: var(--link-color);
+  color: var(--background-color);
+  text-decoration: none;
+  font-weight: var(--font-semibold);
+  font-size: var(--body-font-size-m);
+  border-radius: 4px;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+  cursor: pointer;
+}
+
+.commerce-teaser-button:hover {
+  background-color: var(--link-hover-color);
+  transform: translateY(-1px);
+}
+
+.commerce-teaser-button:focus {
+  outline: 2px solid var(--link-color);
+  outline-offset: 2px;
+}
+
+/* Mobile styles (default) */
+@media (max-width: 767px) {
+  .commerce-teaser-content {
+    padding: 16px;
+  }
+
+  .commerce-teaser-title {
+    font-size: var(--heading-font-size-xs);
+  }
+
+  .commerce-teaser-price {
+    font-size: 24px;
+  }
+
+  .commerce-teaser-description {
+    font-size: var(--body-font-size-s);
+  }
+
+  .commerce-teaser-button {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+/* Tablet styles */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .commerce-teaser-card {
+    flex-direction: row;
+  }
+
+  .commerce-teaser-image {
+    width: 40%;
+    min-width: 300px;
+  }
+
+  .commerce-teaser-content {
+    width: 60%;
+  }
+}
+
+/* Desktop styles */
+@media (min-width: 1024px) {
+  .commerce-teaser-wrapper {
+    max-width: 800px;
+  }
+
+  .commerce-teaser-card {
+    flex-direction: row;
+  }
+
+  .commerce-teaser-image {
+    width: 45%;
+    min-width: 350px;
+  }
+
+  .commerce-teaser-content {
+    width: 55%;
+    padding: 32px;
+  }
+}
+
+/* Grid layout support */
+.commerce-teaser.block {
+  display: block;
+}
+
+/* Multiple teasers in a grid */
+.section > .default-content-wrapper > .commerce-teaser {
+  margin-bottom: 32px;
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .commerce-teaser-card,
+  .commerce-teaser-button {
+    transition: none;
+  }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .commerce-teaser-card {
+    border-width: 2px;
+  }
+
+  .commerce-teaser-button:focus {
+    outline-width: 3px;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .commerce-teaser-card {
+    background-color: var(--dark-background-color, #1a1a1a);
+    border-color: #333;
+  }
+
+  .commerce-teaser-title,
+  .commerce-teaser-description {
+    color: var(--dark-text-color, #e0e0e0);
+  }
+
+  .commerce-teaser-price {
+    color: var(--dark-link-color, #4da6ff);
+  }
+}

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Commerce Teaser Test</title>
+    <style>
+        :root {
+            --background-color: #ffffff;
+            --text-color: #333333;
+            --link-color: #0066cc;
+            --link-hover-color: #0052a3;
+            --heading-font-size-s: 1.25rem;
+            --heading-font-size-xs: 1.125rem;
+            --body-font-size-m: 1rem;
+            --body-font-size-s: 0.875rem;
+            --font-bold: 700;
+            --font-semibold: 600;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 40px;
+            background-color: #f5f5f5;
+        }
+        .section {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+    </style>
+    <link rel="stylesheet" href="blocks/commerce-teaser/commerce-teaser.css">
+</head>
+<body>
+    <div class="section">
+        <h1>Commerce Teaser Block Example</h1>
+        
+        <!-- Commerce Teaser Block Structure -->
+        <div class="commerce-teaser block" data-block-name="commerce-teaser">
+            <div>
+                <picture>
+                    <img src="https://via.placeholder.com/800x600" alt="Premium Wireless Headphones">
+                </picture>
+            </div>
+            <div>Premium Wireless Headphones</div>
+            <div>$299.99</div>
+            <div>Experience crystal-clear audio with our premium wireless headphones. Features active noise cancellation, 30-hour battery life, and premium comfort for all-day wear.</div>
+            <div>https://example.com/products/wireless-headphones</div>
+            <div>Shop Now</div>
+            <div>_blank</div>
+        </div>
+
+        <h2>Multiple Commerce Teasers</h2>
+        
+        <!-- Second Commerce Teaser -->
+        <div class="commerce-teaser block" data-block-name="commerce-teaser">
+            <div>
+                <picture>
+                    <img src="https://via.placeholder.com/800x600/FF5733/FFFFFF" alt="Smart Watch Pro">
+                </picture>
+            </div>
+            <div>Smart Watch Pro</div>
+            <div>$449.00</div>
+            <div>Track your fitness, receive notifications, and stay connected with our advanced smartwatch featuring a vibrant AMOLED display.</div>
+            <div>https://example.com/products/smart-watch-pro</div>
+            <div>View Product</div>
+            <div>_blank</div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Simulate block decoration
+        import decorate from './blocks/commerce-teaser/commerce-teaser.js';
+        
+        // Mock required functions
+        window.hlx = { rum: { sampleRUM: () => {} } };
+        
+        document.querySelectorAll('.commerce-teaser').forEach(block => {
+            decorate(block);
+        });
+    </script>
+</body>
+</html>
