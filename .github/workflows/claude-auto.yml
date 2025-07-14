@@ -85,11 +85,9 @@ jobs:
           git checkout -b "$FEATURE_BRANCH_NAME" "origin/$DEFAULT_BRANCH"
           
           echo "========================================================================"
-          echo "=== 2. IMAGE PROCESSING ==="
+          echo "=== 2. IMAGE PROCESSING (IF APPLICABLE) ==="
           echo "========================================================================"
-          CLAUDE_CMD_ARGS=("--print" "--model" "$CLAUDE_MODEL" "--dangerously-skip-permissions")
           IMAGES_WERE_DOWNLOADED=false
-          
           if [ -n "$JIRA_IMAGE_URLS" ] && [ "$JIRA_IMAGE_URLS" != "none" ] && [ -n "$JIRA_IMAGE_FILENAMES" ] && [ "$JIRA_IMAGE_FILENAMES" != "none" ]; then
             mkdir -p jira-images && IMAGES_WERE_DOWNLOADED=true
             IFS=',' read -ra IMAGE_URL_ARRAY <<< "$JIRA_IMAGE_URLS"
@@ -109,6 +107,11 @@ jobs:
           echo "========================================================================"
           echo "=== 3. CLAUDE EXECUTION ==="
           echo "========================================================================"
+          # This is the correct, logical place to define the command arguments.
+          CLAUDE_CMD_ARGS=("--print" "--model" "$CLAUDE_MODEL" "--dangerously-skip-permissions")
+          echo "Using model: $CLAUDE_MODEL"
+          echo "Final Claude command arguments: ${CLAUDE_CMD_ARGS[*]}"
+          echo "--- Passing full prompt from N8N to Claude's stdin as non-root user 'node' ---"
           runuser -u node -- claude "${CLAUDE_CMD_ARGS[@]}" <<< "$CLAUDE_PROMPT"
           echo "Claude execution complete."
           
@@ -122,7 +125,6 @@ jobs:
           echo "========================================================================"
           echo "=== 5. COMPILING EDS MODELS (npm run build:json) ===" 
           echo "========================================================================"
-          # This command requires local dependencies to be installed first.
           npm run build:json
           echo "EDS Models build completed."
 
