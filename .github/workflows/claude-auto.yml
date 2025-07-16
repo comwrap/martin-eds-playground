@@ -43,6 +43,11 @@ jobs:
       JIRA_IMAGE_FILENAMES: ${{ github.event.inputs.JIRA_IMAGE_FILENAMES || github.event.client_payload.JIRA_IMAGE_FILENAMES }}
       GH_REPO: ${{ github.repository }}
       DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      AEM_URL: ${{ secrets.AEM_URL }}
+      AEM_USERNAME: ${{ secrets.AEM_USERNAME }}
+      AEM_PASSWORD: ${{ secrets.AEM_PASSWORD }}
+      AEM_SRC_PATH: ${{ secrets.AEM_SRC_PATH }}
+      AEM_DEST_PARENT_PATH: ${{ secrets.AEM_DEST_PARENT_PATH }}
 
     steps:
       - name: 1. Install System Dependencies
@@ -141,8 +146,29 @@ jobs:
             echo "No file changes detected. Skipping commit."
             echo "changes_pushed=false" >> $GITHUB_OUTPUT
           fi
+      
+      - name: 7. Wait for EDS Deployment
+        run: |
+          echo "Waiting for 10 seconds for EDS to deploy..."
+          sleep 10
           
-      - name: 7. Notify N8N to Create Pull Request
+      - name: 8. Create AEM Demo Page
+        if: steps.main_script.outputs.changes_pushed == 'true'
+        run: |
+          curl '${AEM_URL}/bin/wcmcommand' \
+            -u '${AEM_USERNAME}:${AEM_PASSWORD}' \
+            -H 'content-type: application/x-www-form-urlencoded; charset=UTF-8' \
+            --data-raw '_charset_=UTF-8&cmd=copyPage&srcPath=${AEM_SRC_PATH}&destParentPath=${AEM_DEST_PARENT_PATH}&before=&destName=${TICKET_ID}&shallow=false'
+
+      - name: 9. Update AEM Page Title
+        if: steps.main_script.outputs.changes_pushed == 'true'
+        run: |
+          curl '${AEM_URL}${AEM_DEST_PARENT_PATH}/${TICKET_ID}/jcr:content' \
+            -u '${AEM_USERNAME}:${AEM_PASSWORD}' \
+            -H 'Content-Type: application/x-www-form-urlencoded; charset=UTF-8' \
+            --data-raw "jcr:title=${TICKET_ID}"
+          
+      - name: 10. Notify N8N to Create Pull Request
         if: steps.main_script.outputs.changes_pushed == 'true'
         shell: bash
         run: |
