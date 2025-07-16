@@ -1,4 +1,4 @@
-name: Codex Full Auto (with Image Handling)
+name: Codex Full Auto (with Build Step)
 
 on:
   workflow_dispatch:
@@ -100,7 +100,7 @@ jobs:
           # Initialize command arguments
           CODEX_CMD_ARGS=("--full-auto" "-m" "$CODEX_MODEL")
 
-          # --- IMAGE HANDLING LOGIC (RESTORED) ---
+          # Image Handling Logic
           if [ -n "$JIRA_IMAGE_URLS" ] && [ "$JIRA_IMAGE_URLS" != "none" ] && [ -n "$JIRA_IMAGE_FILENAMES" ] && [ "$JIRA_IMAGE_FILENAMES" != "none" ]; then
             IFS=',' read -ra IMAGE_URL_ARRAY <<< "$JIRA_IMAGE_URLS"
             IFS=',' read -ra IMAGE_FILENAME_ARRAY <<< "$JIRA_IMAGE_FILENAMES"
@@ -115,7 +115,6 @@ jobs:
                 MIME_TYPE=$(file --mime-type -b "$DOWNLOAD_PATH")
                 if [[ "$MIME_TYPE" =~ ^image\/(png|jpeg|webp|gif)$ ]]; then
                   echo "Image is valid ($MIME_TYPE). Adding to Codex."
-                  # Append the image flag to the arguments array
                   CODEX_CMD_ARGS+=("-i" "$DOWNLOAD_PATH")
                 else
                   echo "ERROR: Invalid image MIME type: $MIME_TYPE. Skipping."
@@ -127,12 +126,16 @@ jobs:
             done
           fi
 
-          # --- CORRECTED COMMAND ---
-          # Using `exec` with the dynamically built arguments array.
+          # Codex Execution
           codex exec "${CODEX_CMD_ARGS[@]}" "$FINAL_PROMPT"
           
           echo "Codex execution complete."
           rm -f jira_dl_image_*
+
+          # --- BUILD STEP (RESTORED) ---
+          echo "Compiling EDS Models..."
+          npm run build:json
+          echo "EDS Models build completed."
 
           # Git Operations
           if [ -n "$(git status --porcelain)" ]; then
@@ -145,6 +148,7 @@ jobs:
             echo "changes_pushed=false" >> $GITHUB_OUTPUT
           fi
 
+      # ... (The rest of the steps 7 through 12 remain unchanged) ...
       - name: 7. Sanitize Ticket ID for AEM
         id: sanitize
         if: steps.main_script.outputs.changes_pushed == 'true'
