@@ -193,7 +193,7 @@ jobs:
 
           echo "--- Preparing data for AEM API call ---"
           FORM_DATA=$(echo "$DEMO_JSON" | jq -r 'to_entries | map("\(.key)=\(.value|tostring|@uri)") | join("&")')
-          SLING_RESOURCETYPE="${GH_REPO}/blocks/${COMPONENT_NAME}"
+          SLING_RESOURCETYPE="core/franklin/components/block/v1/block"
           FINAL_FORM_DATA="${FORM_DATA}&sling:resourceType=${SLING_RESOURCETYPE}"
           
           AEM_PAGE_NAME="${{ steps.sanitize.outputs.aem_page_name }}"
