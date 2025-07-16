@@ -1,0 +1,54 @@
+name: AEM Debug Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      TICKET_ID:
+        description: 'A test ticket ID for the page name.'
+        required: true
+        default: 'aem-debug-test-123'
+
+jobs:
+  debug-aem-commands:
+    runs-on: ubuntu-latest
+
+    env:
+      AEM_URL: ${{ secrets.AEM_URL }}
+      AEM_USERNAME: ${{ secrets.AEM_USERNAME }}
+      AEM_PASSWORD: ${{ secrets.AEM_PASSWORD }}
+      AEM_SRC_PATH: ${{ secrets.AEM_SRC_PATH }}
+      AEM_DEST_PARENT_PATH: ${{ secrets.AEM_DEST_PARENT_PATH }}
+      TICKET_ID: ${{ github.event.inputs.TICKET_ID }}
+
+    steps:
+      - name: 1. Verify Environment Variables
+        run: |
+          echo "--- Checking if secrets are loaded ---"
+          if [ -z "$AEM_URL" ]; then echo "::error::AEM_URL secret is missing."; exit 1; fi
+          if [ -z "$AEM_USERNAME" ]; then echo "::error::AEM_USERNAME secret is missing."; exit 1; fi
+          if [ -z "$AEM_PASSWORD" ]; then echo "::error::AEM_PASSWORD secret is missing."; exit 1; fi
+          if [ -z "$AEM_SRC_PATH" ]; then echo "::error::AEM_SRC_PATH secret is missing."; exit 1; fi
+          if [ -z "$AEM_DEST_PARENT_PATH" ]; then echo "::error::AEM_DEST_PARENT_PATH secret is missing."; exit 1; fi
+          
+          echo "AEM URL is: $AEM_URL"
+          echo "Ticket ID is: $TICKET_ID"
+          echo "--------------------------------------"
+
+      - name: 2. Create AEM Demo Page
+        run: |
+          echo "Attempting to create page: ${TICKET_ID}"
+          # Using double quotes to allow shell variable expansion.
+          # Added -v for verbose output and --fail-with-body to see response on error.
+          curl -v --fail-with-body "${AEM_URL}/bin/wcmcommand" \
+            -u "${AEM_USERNAME}:${AEM_PASSWORD}" \
+            -H 'Content-Type: application/x-www-form-urlencoded; charset=UTF-8' \
+            --data-raw "_charset_=UTF-8&cmd=copyPage&srcPath=${AEM_SRC_PATH}&destParentPath=${AEM_DEST_PARENT_PATH}&before=&destName=${TICKET_ID}&shallow=false"
+
+      - name: 3. Update AEM Page Title
+        run: |
+          echo "Attempting to update title for page: ${TICKET_ID}"
+          # Using double quotes here as well.
+          curl -v --fail-with-body "${AEM_URL}${AEM_DEST_PARENT_PATH}/${TICKET_ID}/jcr:content" \
+            -u "${AEM_USERNAME}:${AEM_PASSWORD}" \
+            -H 'Content-Type: application/x-www-form-urlencoded; charset=UTF-8' \
+            --data-raw "jcr:title=${TICKET_ID}"
