@@ -74,7 +74,6 @@ jobs:
 
       - name: 5. Set Workspace Permissions for Non-Root User
         run: |
-          # The node user needs access to the node_modules installed in the previous step
           chown -R node:node "$GITHUB_WORKSPACE"
 
       - name: 6. Execute Main AI, Build, and Git Logic
@@ -82,16 +81,10 @@ jobs:
         shell: bash
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-          echo "========================================================================"
-          echo "=== 1. INITIAL SETUP & BRANCHING ==="
-          echo "========================================================================"
           FEATURE_BRANCH_NAME="feature/$TICKET_ID"
           git checkout -b "$FEATURE_BRANCH_NAME" "origin/$DEFAULT_BRANCH"
           
-          echo "========================================================================"
-          echo "=== 2. IMAGE PROCESSING (IF APPLICABLE) ==="
-          echo "========================================================================"
+          # IMAGE PROCESSING (IF APPLICABLE)
           IMAGES_WERE_DOWNLOADED=false
           if [ -n "$JIRA_IMAGE_URLS" ] && [ "$JIRA_IMAGE_URLS" != "none" ] && [ -n "$JIRA_IMAGE_FILENAMES" ] && [ "$JIRA_IMAGE_FILENAMES" != "none" ]; then
             mkdir -p jira-images && IMAGES_WERE_DOWNLOADED=true
@@ -109,33 +102,22 @@ jobs:
             done
           fi
           
-          echo "========================================================================"
-          echo "=== 3. CLAUDE EXECUTION ==="
-          echo "========================================================================"
-          # This is the correct, logical place to define the command arguments.
+          # CLAUDE EXECUTION
           CLAUDE_CMD_ARGS=("--print" "--model" "$CLAUDE_MODEL" "--dangerously-skip-permissions")
           echo "Using model: $CLAUDE_MODEL"
-          echo "Final Claude command arguments: ${CLAUDE_CMD_ARGS[*]}"
-          echo "--- Passing full prompt from N8N to Claude's stdin as non-root user 'node' ---"
           runuser -u node -- claude "${CLAUDE_CMD_ARGS[@]}" <<< "$CLAUDE_PROMPT"
           echo "Claude execution complete."
           
-          echo "========================================================================"
-          echo "=== 4. CLEANING UP DOWNLOADED IMAGES ===" 
-          echo "========================================================================"
+          # CLEANING UP IMAGES
           if [ "$IMAGES_WERE_DOWNLOADED" = true ]; then
               rm -rf jira-images && echo "Removed ./jira-images directory."
           fi
           
-          echo "========================================================================"
-          echo "=== 5. COMPILING EDS MODELS (npm run build:json) ===" 
-          echo "========================================================================"
+          # COMPILING MODELS
           npm run build:json
           echo "EDS Models build completed."
 
-          echo "========================================================================"
-          echo "=== 6. GIT OPERATIONS ===" 
-          echo "========================================================================"
+          # GIT OPERATIONS
           if [ -n "$(git status --porcelain)" ]; then
             git add -A
             git commit -m "feat($TICKET_ID): Apply AI-generated changes [skip ci]"
@@ -147,28 +129,40 @@ jobs:
             echo "changes_pushed=false" >> $GITHUB_OUTPUT
           fi
       
-      - name: 7. Wait for EDS Deployment
+      - name: 7. Sanitize Ticket ID for AEM
+        id: sanitize
+        if: steps.main_script.outputs.changes_pushed == 'true'
+        run: |
+          # Replace '/' with '-' to create a valid AEM page name and URL slug.
+          SANITIZED_NAME=$(echo "${TICKET_ID}" | sed 's/\//-/g')
+          echo "Sanitized AEM page name: $SANITIZED_NAME"
+          echo "aem_page_name=$SANITIZED_NAME" >> $GITHUB_OUTPUT
+
+      - name: 8. Wait for EDS Deployment
+        if: steps.main_script.outputs.changes_pushed == 'true'
         run: |
           echo "Waiting for 10 seconds for EDS to deploy..."
           sleep 10
           
-      - name: 8. Create AEM Demo Page
+      - name: 9. Create AEM Demo Page
         if: steps.main_script.outputs.changes_pushed == 'true'
         run: |
-          curl '${AEM_URL}/bin/wcmcommand' \
-            -u '${AEM_USERNAME}:${AEM_PASSWORD}' \
-            -H 'content-type: application/x-www-form-urlencoded; charset=UTF-8' \
-            --data-raw '_charset_=UTF-8&cmd=copyPage&srcPath=${AEM_SRC_PATH}&destParentPath=${AEM_DEST_PARENT_PATH}&before=&destName=${TICKET_ID}&shallow=false'
-
-      - name: 9. Update AEM Page Title
-        if: steps.main_script.outputs.changes_pushed == 'true'
-        run: |
-          curl '${AEM_URL}${AEM_DEST_PARENT_PATH}/${TICKET_ID}/jcr:content' \
-            -u '${AEM_USERNAME}:${AEM_PASSWORD}' \
+          # CORRECTED: Use double quotes for variable expansion and the sanitized page name.
+          curl --fail-with-body "${AEM_URL}/bin/wcmcommand" \
+            -u "${AEM_USERNAME}:${AEM_PASSWORD}" \
             -H 'Content-Type: application/x-www-form-urlencoded; charset=UTF-8' \
-            --data-raw "jcr:title=${TICKET_ID}"
+            --data-raw "_charset_=UTF-8&cmd=copyPage&srcPath=${AEM_SRC_PATH}&destParentPath=${AEM_DEST_PARENT_PATH}&before=&destName=${{ steps.sanitize.outputs.aem_page_name }}&shallow=false"
+
+      - name: 10. Update AEM Page Title
+        if: steps.main_script.outputs.changes_pushed == 'true'
+        run: |
+          # CORRECTED: Use double quotes for variable expansion and the sanitized page name.
+          curl --fail-with-body "${AEM_URL}${AEM_DEST_PARENT_PATH}/${{ steps.sanitize.outputs.aem_page_name }}/jcr:content" \
+            -u "${AEM_USERNAME}:${AEM_PASSWORD}" \
+            -H 'Content-Type: application/x-www-form-urlencoded; charset=UTF-8' \
+            --data-raw "jcr:title=${{ steps.sanitize.outputs.aem_page_name }}"
           
-      - name: 10. Notify N8N to Create Pull Request
+      - name: 11. Notify N8N to Create Pull Request
         if: steps.main_script.outputs.changes_pushed == 'true'
         shell: bash
         run: |
