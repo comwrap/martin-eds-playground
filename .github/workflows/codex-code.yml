@@ -1,4 +1,4 @@
-name: Codex Full Auto (with Verified Flags)
+name: Codex Full Auto (with Image Handling)
 
 on:
   workflow_dispatch:
@@ -97,11 +97,11 @@ jobs:
           
           FINAL_PROMPT="${CODEX_PROMPT}${DEMO_DATA_INSTRUCTIONS}"
 
-          # CORRECT: This is the only set of automation flags supported by the installed CLI.
-          CODEX_CMD_ARGS=("-m" "$CODEX_MODEL" "--dangerously-auto-approve-everything")
+          # Initialize command arguments
+          CODEX_CMD_ARGS=("--full-auto" "-m" "$CODEX_MODEL")
 
-          # Image Processing
-          if [ -n "$JIRA_IMAGE_URLS" ] && [ "$JIRA_IMAGE_URLS" != "none" ]; then
+          # --- IMAGE HANDLING LOGIC (RESTORED) ---
+          if [ -n "$JIRA_IMAGE_URLS" ] && [ "$JIRA_IMAGE_URLS" != "none" ] && [ -n "$JIRA_IMAGE_FILENAMES" ] && [ "$JIRA_IMAGE_FILENAMES" != "none" ]; then
             IFS=',' read -ra IMAGE_URL_ARRAY <<< "$JIRA_IMAGE_URLS"
             IFS=',' read -ra IMAGE_FILENAME_ARRAY <<< "$JIRA_IMAGE_FILENAMES"
             for (( i=0; i<${#IMAGE_URL_ARRAY[@]}; i++ )); do
@@ -109,22 +109,32 @@ jobs:
               SAFE_FILENAME=$(echo "${IMAGE_FILENAME_ARRAY[$i]}" | xargs | sed 's/[^a-zA-Z0-9._-]/_/g')
               if [ -z "$IMG_URL" ] || [ -z "$SAFE_FILENAME" ]; then continue; fi
               DOWNLOAD_PATH="jira_dl_image_${i}_${SAFE_FILENAME}"
+              echo "Downloading image to ${DOWNLOAD_PATH}"
               HTTP_STATUS=$(curl -sSL -w "%{http_code}" -o "$DOWNLOAD_PATH" -u "${JIRA_API_USER}:${JIRA_API_TOKEN}" "$IMG_URL")
-              if [ "$HTTP_STATUS" -eq 200 ] && [ -s "$DOWNLOAD_PATH" ]; then
-                CODEX_CMD_ARGS+=("-i" "$DOWNLOAD_PATH")
+              if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ] && [ -s "$DOWNLOAD_PATH" ]; then
+                MIME_TYPE=$(file --mime-type -b "$DOWNLOAD_PATH")
+                if [[ "$MIME_TYPE" =~ ^image\/(png|jpeg|webp|gif)$ ]]; then
+                  echo "Image is valid ($MIME_TYPE). Adding to Codex."
+                  # Append the image flag to the arguments array
+                  CODEX_CMD_ARGS+=("-i" "$DOWNLOAD_PATH")
+                else
+                  echo "ERROR: Invalid image MIME type: $MIME_TYPE. Skipping."
+                  rm -f "$DOWNLOAD_PATH"
+                fi
               else
-                rm -f "$DOWNLOAD_PATH"
+                echo "Error downloading image (HTTP Status: $HTTP_STATUS)."
               fi
             done
           fi
 
-          # Codex Execution
-          codex "${CODEX_CMD_ARGS[@]}" "$FINAL_PROMPT"
+          # --- CORRECTED COMMAND ---
+          # Using `exec` with the dynamically built arguments array.
+          codex exec "${CODEX_CMD_ARGS[@]}" "$FINAL_PROMPT"
+          
           echo "Codex execution complete."
           rm -f jira_dl_image_*
 
-          # Compiling & Git Ops
-          npm run build:json
+          # Git Operations
           if [ -n "$(git status --porcelain)" ]; then
             git add -A
             git commit -m "feat($TICKET_ID): Apply AI-generated changes [skip ci]"
