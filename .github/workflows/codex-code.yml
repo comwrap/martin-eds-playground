@@ -1,4 +1,4 @@
-name: Codex Full Auto (with Build Step)
+name: Codex Full Auto (with AEM Metadata Correction)
 
 on:
   workflow_dispatch:
@@ -96,11 +96,8 @@ jobs:
           )
           
           FINAL_PROMPT="${CODEX_PROMPT}${DEMO_DATA_INSTRUCTIONS}"
-
-          # Initialize command arguments
           CODEX_CMD_ARGS=("--full-auto" "-m" "$CODEX_MODEL")
 
-          # Image Handling Logic
           if [ -n "$JIRA_IMAGE_URLS" ] && [ "$JIRA_IMAGE_URLS" != "none" ] && [ -n "$JIRA_IMAGE_FILENAMES" ] && [ "$JIRA_IMAGE_FILENAMES" != "none" ]; then
             IFS=',' read -ra IMAGE_URL_ARRAY <<< "$JIRA_IMAGE_URLS"
             IFS=',' read -ra IMAGE_FILENAME_ARRAY <<< "$JIRA_IMAGE_FILENAMES"
@@ -109,35 +106,20 @@ jobs:
               SAFE_FILENAME=$(echo "${IMAGE_FILENAME_ARRAY[$i]}" | xargs | sed 's/[^a-zA-Z0-9._-]/_/g')
               if [ -z "$IMG_URL" ] || [ -z "$SAFE_FILENAME" ]; then continue; fi
               DOWNLOAD_PATH="jira_dl_image_${i}_${SAFE_FILENAME}"
-              echo "Downloading image to ${DOWNLOAD_PATH}"
               HTTP_STATUS=$(curl -sSL -w "%{http_code}" -o "$DOWNLOAD_PATH" -u "${JIRA_API_USER}:${JIRA_API_TOKEN}" "$IMG_URL")
               if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ] && [ -s "$DOWNLOAD_PATH" ]; then
-                MIME_TYPE=$(file --mime-type -b "$DOWNLOAD_PATH")
-                if [[ "$MIME_TYPE" =~ ^image\/(png|jpeg|webp|gif)$ ]]; then
-                  echo "Image is valid ($MIME_TYPE). Adding to Codex."
-                  CODEX_CMD_ARGS+=("-i" "$DOWNLOAD_PATH")
-                else
-                  echo "ERROR: Invalid image MIME type: $MIME_TYPE. Skipping."
-                  rm -f "$DOWNLOAD_PATH"
-                fi
-              else
-                echo "Error downloading image (HTTP Status: $HTTP_STATUS)."
+                CODEX_CMD_ARGS+=("-i" "$DOWNLOAD_PATH")
               fi
             done
           fi
 
-          # Codex Execution
           codex exec "${CODEX_CMD_ARGS[@]}" "$FINAL_PROMPT"
-          
-          echo "Codex execution complete."
           rm -f jira_dl_image_*
 
-          # --- BUILD STEP (RESTORED) ---
           echo "Compiling EDS Models..."
           npm run build:json
           echo "EDS Models build completed."
 
-          # Git Operations
           if [ -n "$(git status --porcelain)" ]; then
             git add -A
             git commit -m "feat($TICKET_ID): Apply AI-generated changes [skip ci]"
@@ -148,7 +130,6 @@ jobs:
             echo "changes_pushed=false" >> $GITHUB_OUTPUT
           fi
 
-      # ... (The rest of the steps 7 through 12 remain unchanged) ...
       - name: 7. Sanitize Ticket ID for AEM
         id: sanitize
         if: steps.main_script.outputs.changes_pushed == 'true'
@@ -174,32 +155,50 @@ jobs:
         if: steps.main_script.outputs.changes_pushed == 'true'
         shell: bash
         run: |
-          echo "--- Finding generated demo_data.json ---"
+          echo "--- Finding generated component files ---"
           DEMO_FILE_PATH=$(git diff --name-only HEAD~1 HEAD | grep 'demo_data.json' | head -n 1)
+          MODEL_FILE_PATH=$(git diff --name-only HEAD~1 HEAD | grep 'blocks/.*_.*.json' | head -n 1)
           
-          if [ -z "$DEMO_FILE_PATH" ]; then
-            echo "Warning: No demo_data.json file was created by the AI. Skipping component creation."
+          if [ -z "$DEMO_FILE_PATH" ] || [ -z "$MODEL_FILE_PATH" ]; then
+            echo "Warning: Critical file (demo_data.json or _component.json) was not created by the AI. Skipping component creation."
             exit 0
           fi
           
-          echo "Found demo data file at: $DEMO_FILE_PATH"
           COMPONENT_NAME=$(basename "$(dirname "$DEMO_FILE_PATH")")
-          DEMO_JSON=$(cat "$DEMO_FILE_PATH")
+          echo "Found component: $COMPONENT_NAME"
+          
+          # --- PROGRAMMATICALLY GENERATE METADATA ---
+          # 1. Generate the 'modelFields' array by parsing the component's model definition
+          MODEL_FIELDS_JSON=$(jq -r '[.models[0].fields[].name]' "$MODEL_FILE_PATH")
+          
+          # 2. Create other metadata fields from the component name
+          FILTER_VAL="$COMPONENT_NAME"
+          MODEL_VAL="$COMPONENT_NAME"
+          NAME_VAL=$(echo "$COMPONENT_NAME" | sed -r 's/(^|-)([a-z])/\U\2/g' | sed 's/-/ /g')
+          
+          # 3. Read the AI-generated content and merge everything into a final JSON object
+          AI_CONTENT_JSON=$(cat "$DEMO_FILE_PATH")
+          
+          # 4. Overwrite image path with hardcoded value and add all metadata fields
+          MERGED_JSON=$(echo "$AI_CONTENT_JSON" | jq \
+            --arg filter "$FILTER_VAL" \
+            --arg model "$MODEL_VAL" \
+            --arg name "$NAME_VAL" \
+            --argjson modelFields "$MODEL_FIELDS_JSON" \
+            '.["product-image"] = "/content/dam/aco/content-at-scale.png" | . + {filter: $filter, model: $model, name: $name, modelFields: $modelFields}')
+          
+          echo "--- Final JSON to be sent to AEM ---"
+          echo "$MERGED_JSON" | jq .
 
-          if ! echo "$DEMO_JSON" | jq -e . >/dev/null 2>&1; then
-            echo "::error::File at $DEMO_FILE_PATH does not contain valid JSON. Cannot proceed."
-            exit 1
-          fi
-
-          echo "--- Preparing data for AEM API call ---"
-          FORM_DATA=$(echo "$DEMO_JSON" | jq -r 'to_entries | map("\(.key)=\(.value|tostring|@uri)") | join("&")')
+          # --- PREPARE AND SEND TO AEM ---
+          FORM_DATA=$(echo "$MERGED_JSON" | jq -r 'to_entries | map("\(.key)=\(.value|tostring|@uri)") | join("&")')
           SLING_RESOURCETYPE="core/franklin/components/block/v1/block"
           FINAL_FORM_DATA="${FORM_DATA}&sling:resourceType=${SLING_RESOURCETYPE}"
           
           AEM_PAGE_NAME="${{ steps.sanitize.outputs.aem_page_name }}"
           TARGET_URL="${AEM_URL}${AEM_DEST_PARENT_PATH}/${AEM_PAGE_NAME}/jcr:content/root/section_0/block"
           
-          echo "Posting component '$COMPONENT_NAME' to AEM at: $TARGET_URL"
+          echo "Posting component to AEM at: $TARGET_URL"
           curl -v --fail-with-body "$TARGET_URL" -u "${AEM_USERNAME}:${AEM_PASSWORD}" -H "Content-Type: application/x-www-form-urlencoded; charset=UTF-8" --data-raw "$FINAL_FORM_DATA"
 
       - name: 12. Notify N8N to Create Pull Request
