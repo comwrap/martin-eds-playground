@@ -1,54 +1,39 @@
-name: AEM Debug Workflow
+name: AEM Hardcoded Update Test
 
 on:
   workflow_dispatch:
-    inputs:
-      TICKET_ID:
-        description: 'A test ticket ID for the page name.'
-        required: true
-        default: 'aem-debug-test-123'
 
 jobs:
-  debug-aem-commands:
+  test-aem-update:
     runs-on: ubuntu-latest
 
     env:
       AEM_URL: ${{ secrets.AEM_URL }}
       AEM_USERNAME: ${{ secrets.AEM_USERNAME }}
       AEM_PASSWORD: ${{ secrets.AEM_PASSWORD }}
-      AEM_SRC_PATH: ${{ secrets.AEM_SRC_PATH }}
-      AEM_DEST_PARENT_PATH: ${{ secrets.AEM_DEST_PARENT_PATH }}
-      TICKET_ID: ${{ github.event.inputs.TICKET_ID }}
 
     steps:
-      - name: 1. Verify Environment Variables
+      - name: Update AEM Component with Hardcoded Data
+        shell: bash
         run: |
-          echo "--- Checking if secrets are loaded ---"
-          if [ -z "$AEM_URL" ]; then echo "::error::AEM_URL secret is missing."; exit 1; fi
-          if [ -z "$AEM_USERNAME" ]; then echo "::error::AEM_USERNAME secret is missing."; exit 1; fi
-          if [ -z "$AEM_PASSWORD" ]; then echo "::error::AEM_PASSWORD secret is missing."; exit 1; fi
-          if [ -z "$AEM_SRC_PATH" ]; then echo "::error::AEM_SRC_PATH secret is missing."; exit 1; fi
-          if [ -z "$AEM_DEST_PARENT_PATH" ]; then echo "::error::AEM_DEST_PARENT_PATH secret is missing."; exit 1; fi
+          # This is the exact target node you specified.
+          TARGET_URL="${AEM_URL}/content/martin-eds-playground/AI-Template-Dont-delete/AEMCP-100/jcr:content/root/section_0/block"
+
+          # These are the hardcoded values, mimicking your "correct" screenshot.
+          # Note how `modelFields` and `classes` are specified multiple times. This is the key part we are testing.
+          FORM_DATA=$(cat <<'EOF'
+          sling:resourceType=core/franklin/components/block/v1/block&filter=commerce-teaser&model=commerce-teaser&name=Commerce Teaser&product-description=<p>Product Description Test</p>&commerce-teaser-image=/content/dam/aco/hero.png&commerce-imageAlt=Image Alt Test&commerce-price=12€&commerce-title=Product Title Test&custom-button-label=Hi&custom-button-link=/content/asset_share_commonsdemo&custom-button-target=_blank&classes=download&classes=tertiary&modelFields=commerce-title&modelFields=commerce-price&modelFields=commerce-description&modelFields=commerce-image&modelFields=commerce-imageAlt&modelFields=custom-button-link&modelFields=custom-button-label&modelFields=custom-button-target&modelFields=classes
+          EOF
+          )
           
-          echo "AEM URL is: $AEM_URL"
-          echo "Ticket ID is: $TICKET_ID"
-          echo "--------------------------------------"
+          # Remove newlines for the curl command
+          CLEANED_FORM_DATA=$(echo $FORM_DATA | tr -d '\n')
 
-      - name: 2. Create AEM Demo Page
-        run: |
-          echo "Attempting to create page: ${TICKET_ID}"
-          # Using double quotes to allow shell variable expansion.
-          # Added -v for verbose output and --fail-with-body to see response on error.
-          curl -v --fail-with-body "${AEM_URL}/bin/wcmcommand" \
+          echo "--- Sending POST request to AEM ---"
+          echo "Target URL: $TARGET_URL"
+          echo "Form Data: $CLEANED_FORM_DATA"
+          
+          curl -v --fail-with-body "$TARGET_URL" \
             -u "${AEM_USERNAME}:${AEM_PASSWORD}" \
-            -H 'Content-Type: application/x-www-form-urlencoded; charset=UTF-8' \
-            --data-raw "_charset_=UTF-8&cmd=copyPage&srcPath=${AEM_SRC_PATH}&destParentPath=${AEM_DEST_PARENT_PATH}&before=&destName=${TICKET_ID}&shallow=false"
-
-      - name: 3. Update AEM Page Title
-        run: |
-          echo "Attempting to update title for page: ${TICKET_ID}"
-          # Using double quotes here as well.
-          curl -v --fail-with-body "${AEM_URL}${AEM_DEST_PARENT_PATH}/${TICKET_ID}/jcr:content" \
-            -u "${AEM_USERNAME}:${AEM_PASSWORD}" \
-            -H 'Content-Type: application/x-www-form-urlencoded; charset=UTF-8' \
-            --data-raw "jcr:title=${TICKET_ID}"
+            -H "Content-Type: application/x-www-form-urlencoded; charset=UTF-8" \
+            --data-raw "$CLEANED_FORM_DATA"
