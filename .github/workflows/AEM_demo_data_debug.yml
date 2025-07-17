@@ -1,4 +1,4 @@
-name: Debug AEM Component Creation (Step 11)
+name: Debug AEM Component Creation (Step 11 Corrected)
 
 on:
   workflow_dispatch:
@@ -19,7 +19,8 @@ on:
           {
             "commerce-teaser-title": "AI-Generated Premium Headphones",
             "commerce-teaser-price": "$349.99",
-            "commerce-teaser-description": "Experience pristine audio with these AI-designed headphones.",
+            "commerce-teaser-description": "<p>Experience pristine audio with these AI-designed headphones.</p>",
+            "commerce-teaser-image": "/will/be/overwritten.jpg",
             "commerce-teaser-imageAlt": "AI-Generated headphones image",
             "custom-button-link": "/products/ai-headphones",
             "custom-button-label": "Learn More",
@@ -63,19 +64,16 @@ jobs:
 
       - name: Prepare and Execute AEM Update
         shell: bash
-        # CORRECTED: Inputs are now passed safely via environment variables
         env:
           DEMO_JSON_INPUT: ${{ github.event.inputs.demo_data_json }}
           MODELS_JSON_INPUT: ${{ github.event.inputs.component_models_json }}
         run: |
-          # Write inputs to temporary files safely
           echo "$DEMO_JSON_INPUT" > demo_data.json
           echo "$MODELS_JSON_INPUT" > component-models.json
           
           COMPONENT_NAME="${{ github.event.inputs.component_name }}"
           COMPILED_MODELS_FILE="component-models.json"
           
-          # The rest of the logic is now safe to run
           MODEL_FIELDS_JSON_ARRAY=$(jq -r --arg compName "$COMPONENT_NAME" '[.[] | select(.id == $compName) | .fields[].name] | unique' "$COMPILED_MODELS_FILE")
           METADATA_JSON=$(jq -n --arg filter "$COMPONENT_NAME" --arg model "$COMPONENT_NAME" --arg name "$(echo "$COMPONENT_NAME" | sed -r 's/(^|-)([a-z])/\U\2/g' | sed 's/-/ /g')" --argjson modelFields "$MODEL_FIELDS_JSON_ARRAY" '{filter: $filter, model: $model, name: $name, modelFields: $modelFields}')
           
@@ -93,7 +91,10 @@ jobs:
           echo "--- Final JSON Object for AEM ---"
           echo "$FINAL_JSON" | jq .
 
-          FORM_DATA=$(echo "$FINAL_JSON" | jq -r 'to_entries | .[] | if .value | type == "array" then .key as $k | .value[] | "\($k)=\(.)" else "\(.key)=\(.value|tostring)" end | @uri' | paste -sd'&')
+          # --- FINAL CORRECTED COMMAND ---
+          # This command correctly URL-encodes keys and values separately.
+          FORM_DATA=$(echo "$FINAL_JSON" | jq -r 'to_entries | .[] | if .value | type == "array" then .key as $k | .value[] | ($k|@uri) + "=" + (. | @uri) else (.key|@uri) + "=" + (.value|tostring|@uri) end' | paste -sd'&')
+          
           SLING_RESOURCETYPE="core/franklin/components/block/v1/block"
           FINAL_FORM_DATA="${FORM_DATA}&sling:resourceType=${SLING_RESOURCETYPE}"
           
