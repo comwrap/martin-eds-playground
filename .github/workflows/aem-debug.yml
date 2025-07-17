@@ -1,4 +1,4 @@
-name: AEM Hardcoded Update Test (Final)
+name: AEM Hardcoded Update Test (Final-v2)
 
 on:
   workflow_dispatch:
@@ -17,10 +17,9 @@ jobs:
       - name: Update AEM Component with Corrected Hardcoded Data
         shell: bash
         run: |
-          # CORRECTED: Replaced the '€' symbol with the URL-safe string "EUR".
-          # All property names have been validated against your working example.
+          # --- CORRECTED: All property and modelField names now exactly match the working example ---
           FORM_DATA=$(cat <<'EOF'
-          sling:resourceType=core/franklin/components/block/v1/block&filter=commerce-teaser&model=commerce-teaser&name=Commerce Teaser&commerce-teaser-description=<p>Product Description Test</p>&commerce-teaser-image=/content/dam/aco/hero.png&commerce-teaser-imageAlt=Image Alt Test&commerce-teaser-price=12 EUR&commerce-teaser-title=Product Title Test&custom-button-label=Hi&custom-button-link=/content/asset_share_commonsdemo&custom-button-target=_blank&classes=download&classes=tertiary&modelFields=commerce-title&modelFields=commerce-price&modelFields=commerce-description&modelFields=commerce-image&modelFields=commerce-imageAlt&modelFields=custom-button-link&modelFields=custom-button-label&modelFields=custom-button-target&modelFields=classes
+          sling:resourceType=core/franklin/components/block/v1/block&filter=commerce-teaser&model=commerce-teaser&name=Commerce Teaser&commerce-teaser-description=<p>Product Description Test</p>&commerce-teaser-image=/content/dam/aco/hero.png&commerce-teaser-imageAlt=Image Alt Test&commerce-teaser-price=12 EUR&commerce-teaser-title=Product Title Test&custom-button-label=Hi&custom-button-link=/content/asset_share_commonsdemo&custom-button-target=_blank&classes=download&classes=tertiary&modelFields=commerce-teaser-title&modelFields=commerce-teaser-price&modelFields=commerce-teaser-description&modelFields=commerce-teaser-image&modelFields=commerce-teaser-imageAlt&modelFields=custom-button-link&modelFields=custom-button-label&modelFields=custom-button-target&modelFields=classes
           EOF
           )
           
