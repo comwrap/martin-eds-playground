@@ -1,4 +1,4 @@
-name: Debug AEM Component Creation (Step 11 Corrected)
+name: Debug AEM Component Creation (Final Fix)
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ on:
         required: true
         default: 'commerce-teaser'
       target_aem_node_url:
-        description: 'The full URL of the AEM node to update (e.g., .../jcr:content/root/section_0/block).'
+        description: 'The full URL of the AEM node to update.'
         required: true
         default: 'https://author-p24706-e491522.adobeaemcloud.com/content/martin-eds-playground/AI-Template-Dont-delete/AEMCP-100/jcr:content/root/section_0/block'
       demo_data_json:
@@ -20,7 +20,6 @@ on:
             "commerce-teaser-title": "AI-Generated Premium Headphones",
             "commerce-teaser-price": "$349.99",
             "commerce-teaser-description": "<p>Experience pristine audio with these AI-designed headphones.</p>",
-            "commerce-teaser-image": "/will/be/overwritten.jpg",
             "commerce-teaser-imageAlt": "AI-Generated headphones image",
             "custom-button-link": "/products/ai-headphones",
             "custom-button-label": "Learn More",
@@ -74,8 +73,19 @@ jobs:
           COMPONENT_NAME="${{ github.event.inputs.component_name }}"
           COMPILED_MODELS_FILE="component-models.json"
           
+          # --- CORRECTED: Generate NAME_VAL safely outside of jq ---
           MODEL_FIELDS_JSON_ARRAY=$(jq -r --arg compName "$COMPONENT_NAME" '[.[] | select(.id == $compName) | .fields[].name] | unique' "$COMPILED_MODELS_FILE")
-          METADATA_JSON=$(jq -n --arg filter "$COMPONENT_NAME" --arg model "$COMPONENT_NAME" --arg name "$(echo "$COMPONENT_NAME" | sed -r 's/(^|-)([a-z])/\U\2/g' | sed 's/-/ /g')" --argjson modelFields "$MODEL_FIELDS_JSON_ARRAY" '{filter: $filter, model: $model, name: $name, modelFields: $modelFields}')
+          FILTER_VAL="$COMPONENT_NAME"
+          MODEL_VAL="$COMPONENT_NAME"
+          # Create the properly formatted name in a separate, clean step
+          NAME_VAL=$(echo "$COMPONENT_NAME" | sed -r 's/(^|-)([a-z])/\U\2/g' | sed 's/-/ /g')
+
+          METADATA_JSON=$(jq -n \
+            --arg filter "$FILTER_VAL" \
+            --arg model "$MODEL_VAL" \
+            --arg name "$NAME_VAL" \
+            --argjson modelFields "$MODEL_FIELDS_JSON_ARRAY" \
+            '{filter: $filter, model: $model, name: $name, modelFields: $modelFields}')
           
           AI_CONTENT_JSON=$(cat demo_data.json)
           IMAGE_FIELD_NAME=$(jq -r --arg compName "$COMPONENT_NAME" '.[] | select(.id == $compName) | .fields[] | select(.component == "reference") | .name' "$COMPILED_MODELS_FILE" | head -n 1)
@@ -91,10 +101,7 @@ jobs:
           echo "--- Final JSON Object for AEM ---"
           echo "$FINAL_JSON" | jq .
 
-          # --- FINAL CORRECTED COMMAND ---
-          # This command correctly URL-encodes keys and values separately.
           FORM_DATA=$(echo "$FINAL_JSON" | jq -r 'to_entries | .[] | if .value | type == "array" then .key as $k | .value[] | ($k|@uri) + "=" + (. | @uri) else (.key|@uri) + "=" + (.value|tostring|@uri) end' | paste -sd'&')
-          
           SLING_RESOURCETYPE="core/franklin/components/block/v1/block"
           FINAL_FORM_DATA="${FORM_DATA}&sling:resourceType=${SLING_RESOURCETYPE}"
           
