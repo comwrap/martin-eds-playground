@@ -143,44 +143,49 @@ jobs:
             echo "Warning: No demo_data.json file was created. Skipping."
             exit 0
           fi
+          
           COMPONENT_NAME=$(basename "$(dirname "$DEMO_FILE_PATH")")
           COMPILED_MODELS_FILE="component-models.json"
           
+          # 1. Generate METADATA
           MODEL_FIELDS_JSON_ARRAY=$(jq --arg compName "$COMPONENT_NAME" '[.[] | select(.id == $compName) | .fields[].name] | unique' "$COMPILED_MODELS_FILE")
-          METADATA_JSON=$(jq -n --arg filter "$COMPONENT_NAME" --arg model "$COMPONENT_NAME" --arg name "$(echo "$COMPONENT_NAME" | sed -r 's/(^|-)([a-z])/\U\2/g' | sed 's/-/ /g')" --argjson modelFields "$MODEL_FIELDS_JSON_ARRAY" '{filter: $filter, model: $model, name: $name, modelFields: $modelFields}')
+          METADATA_JSON=$(jq -n \
+            --arg filter "$COMPONENT_NAME" \
+            --arg model "$COMPONENT_NAME" \
+            --arg name "$(echo "$COMPONENT_NAME" | sed -r 's/(^|-)([a-z])/\U\2/g' | sed 's/-/ /g')" \
+            --argjson modelFields "$MODEL_FIELDS_JSON_ARRAY" \
+            '{filter: $filter, model: $model, name: $name, modelFields: $modelFields}')
           
+          # 2. Process AI's demo content
           AI_CONTENT_JSON=$(cat "$DEMO_FILE_PATH")
-          
-          # --- DYNAMIC IMAGE FIELD HANDLING ---
-          # 1. Discover the name of the image field by looking for component type "reference"
-          IMAGE_FIELD_NAME=$(jq -r --arg compName "$COMPONENT_NAME" '.[] | select(.id == $compName) | .fields[] | select(.component == "reference") | .name' "$COMPILED_MODELS_FILE" | head -n 1)
-          
-          # 2. Rename the AI's keys to add the required prefix
           RENAMED_AI_JSON=$(echo "$AI_CONTENT_JSON" | jq --arg compName "$COMPONENT_NAME" 'with_entries(.key |= if (. | startswith("custom-button-") or . == "classes") then . else "\($compName)-\(.)" end)')
           
-          # 3. Conditionally overwrite the discovered image field with the hardcoded path
+          IMAGE_FIELD_NAME=$(jq -r --arg compName "$COMPONENT_NAME" '.[] | select(.id == $compName) | .fields[] | select(.component == "reference") | .name' "$COMPILED_MODELS_FILE" | head -n 1)
+          
           if [ -n "$IMAGE_FIELD_NAME" ]; then
-            echo "Found image reference field: '$IMAGE_FIELD_NAME'. Setting hardcoded path."
             CONTENT_JSON_WITH_IMAGE=$(echo "$RENAMED_AI_JSON" | jq --arg fieldName "$IMAGE_FIELD_NAME" '. + {($fieldName): "/content/dam/aco/content-at-scale.png"}')
           else
-            echo "No image reference field found in model to overwrite."
             CONTENT_JSON_WITH_IMAGE="$RENAMED_AI_JSON"
           fi
 
-          FINAL_JSON=$(jq -s '.[0] * .[1]' <(echo "$CONTENT_JSON_WITH_IMAGE") <(echo "$METADATA_JSON"))
+          # --- CORRECTED: Use a safer jq merge pattern without process substitution ---
+          FINAL_JSON=$(jq -n --argjson content "$CONTENT_JSON_WITH_IMAGE" --argjson meta "$METADATA_JSON" '$content + $meta')
 
           echo "--- Final JSON Object for AEM ---"
           echo "$FINAL_JSON" | jq .
 
+          # 4. PREPARE and SEND to AEM
           FORM_DATA=$(echo "$FINAL_JSON" | jq -r 'to_entries | .[] | if .value | type == "array" then .key as $k | .value[] | "\($k)=\(.)" else "\(.key)=\(.value|tostring)" end | @uri' | paste -sd'&')
           SLING_RESOURCETYPE="core/franklin/components/block/v1/block"
           FINAL_FORM_DATA="${FORM_DATA}&sling:resourceType=${SLING_RESOURCETYPE}"
           
+          echo "--- Final Form Data to be Sent ---"
+          echo "$FINAL_FORM_DATA" | sed 's/&/\n/g'
+
           AEM_PAGE_NAME="${{ steps.sanitize.outputs.aem_page_name }}"
           TARGET_URL="${AEM_URL}${AEM_DEST_PARENT_PATH}/${AEM_PAGE_NAME}/jcr:content/root/section_0/block"
           
           curl -v --fail-with-body "$TARGET_URL" -u "${AEM_USERNAME}:${AEM_PASSWORD}" -H "Content-Type: application/x-www-form-urlencoded; charset=UTF-8" --data-raw "$FINAL_FORM_DATA"
-
       - name: 12. Notify N8N to Create Pull Request
         if: steps.main_script.outputs.changes_pushed == 'true'
         shell: bash
