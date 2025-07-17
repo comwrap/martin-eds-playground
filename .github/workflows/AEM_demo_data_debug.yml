@@ -101,7 +101,7 @@ jobs:
           MERGED_JSON=$(jq -n --argjson ai_content "$AI_CONTENT_JSON" --argjson meta "$METADATA_JSON" '$ai_content + $meta')
           
           if [ -n "$IMAGE_FIELD_NAME" ]; then
-            FINAL_JSON=$(echo "$MERGED_JSON" | jq --arg fieldName "$IMAGE_FIELD_NAME" --arg imagePath "/content/dam/aco/content-at-scale.png" '. + {($fieldName): $imagePath}')
+            FINAL_JSON=$(echo "$MERGED_JSON" | jq --arg fieldName "$IMAGE_FIELD_NAME" --arg imagePath "/content/dam/aco/hero.png" '. + {($fieldName): $imagePath}')
           else
             FINAL_JSON="$MERGED_JSON"
           fi
