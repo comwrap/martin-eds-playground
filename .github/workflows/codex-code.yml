@@ -147,36 +147,35 @@ jobs:
           COMPONENT_NAME=$(basename "$(dirname "$DEMO_FILE_PATH")")
           COMPILED_MODELS_FILE="component-models.json"
           
-          # 1. Get the ground truth: the list of official field names from the final build artifact.
-          OFFICIAL_FIELDS_JSON=$(jq -r --arg compName "$COMPONENT_NAME" '[.[] | select(.id == $compName) | .fields[].name] | unique' "$COMPILED_MODELS_FILE")
+          # 1. Generate METADATA
+          MODEL_FIELDS_JSON_ARRAY=$(jq -r --arg compName "$COMPONENT_NAME" '[.[] | select(.id == $compName) | .fields[].name] | unique' "$COMPILED_MODELS_FILE")
+          METADATA_JSON=$(jq -n \
+            --arg filter "$COMPONENT_NAME" \
+            --arg model "$COMPONENT_NAME" \
+            --arg name "$(echo "$COMPONENT_NAME" | sed -r 's/(^|-)([a-z])/\U\2/g' | sed 's/-/ /g')" \
+            --argjson modelFields "$MODEL_FIELDS_JSON_ARRAY" \
+            '{filter: $filter, model: $model, name: $name, modelFields: $modelFields}')
           
-          # 2. Get the AI's generated content.
+          # 2. Read AI's content and discover the image field name
           AI_CONTENT_JSON=$(cat "$DEMO_FILE_PATH")
+          IMAGE_FIELD_NAME=$(jq -r --arg compName "$COMPONENT_NAME" '.[] | select(.id == $compName) | .fields[] | select(.component == "reference") | .name' "$COMPILED_MODELS_FILE" | head -n 1)
 
-          # 3. Intelligently map the AI's content to the official schema.
-          MAPPED_CONTENT_JSON=$(jq -n --argjson officialFields "$OFFICIAL_FIELDS_JSON" --argjson aiContent "$AI_CONTENT_JSON" '
-            $aiContent | to_entries | map(
-              .key as $aiKey | .value as $aiValue |
-              # Find the official key that matches the AI key.
-              # This handles "title" -> "commerce-teaser-title" and "classes" -> "classes".
-              ($officialFields[] | select(. == $aiKey or endswith("-" + $aiKey))) as $officialKey |
-              {($officialKey): $aiValue}
-            ) | add
-          ')
+          # 3. Merge the AI's content with our generated metadata
+          MERGED_JSON=$(jq -s '.[0] * .[1]' <(echo "$AI_CONTENT_JSON") <(echo "$METADATA_JSON"))
           
-          # 4. Generate metadata.
-          METADATA_JSON=$(jq -n --arg filter "$COMPONENT_NAME" --arg model "$COMPONENT_NAME" --arg name "$(echo "$COMPONENT_NAME" | sed -r 's/(^|-)([a-z])/\U\2/g' | sed 's/-/ /g')" --argjson modelFields "$OFFICIAL_FIELDS_JSON" '{filter: $filter, model: $model, name: $name, modelFields: $modelFields}')
-          
-          # 5. Discover the image field name using the official schema.
-          IMAGE_FIELD_NAME=$(echo "$OFFICIAL_FIELDS_JSON" | jq -r '.[] | select(contains("image"))' | head -n 1)
-
-          # 6. Merge and finalize the JSON.
-          FINAL_JSON=$(jq -s '.[0] * .[1]' <(echo "$MAPPED_CONTENT_JSON") <(echo "$METADATA_JSON") | jq --arg fieldName "$IMAGE_FIELD_NAME" --arg imagePath "/content/dam/aco/content-at-scale.png" 'if $fieldName and $fieldName != "" and $fieldName != null then .[$fieldName] = $imagePath else . end')
+          # 4. Conditionally overwrite the discovered image field with the hardcoded path
+          if [ -n "$IMAGE_FIELD_NAME" ]; then
+            echo "Found image reference field: '$IMAGE_FIELD_NAME'. Setting hardcoded path."
+            FINAL_JSON=$(echo "$MERGED_JSON" | jq --arg fieldName "$IMAGE_FIELD_NAME" '. + {($fieldName): "/content/dam/aco/content-at-scale.png"}')
+          else
+            echo "No image reference field found in model."
+            FINAL_JSON="$MERGED_JSON"
+          fi
 
           echo "--- Final JSON Object for AEM ---"
           echo "$FINAL_JSON" | jq .
 
-          # 7. PREPARE and SEND to AEM.
+          # 5. PREPARE and SEND to AEM
           FORM_DATA=$(echo "$FINAL_JSON" | jq -r 'to_entries | .[] | if .value | type == "array" then .key as $k | .value[] | "\($k)=\(.)" else "\(.key)=\(.value|tostring)" end | @uri' | paste -sd'&')
           SLING_RESOURCETYPE="core/franklin/components/block/v1/block"
           FINAL_FORM_DATA="${FORM_DATA}&sling:resourceType=${SLING_RESOURCETYPE}"
