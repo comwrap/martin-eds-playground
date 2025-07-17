@@ -1,4 +1,4 @@
-name: Debug AEM Component Creation (Final Fix)
+name: Debug AEM Component Creation (Final)
 
 on:
   workflow_dispatch:
@@ -26,8 +26,22 @@ on:
             "custom-button-target": "_blank",
             "classes": ["primary", "featured"]
           }
+      source_model_json:
+        description: 'Paste the full content of the _component.json file here.'
+        required: true
+        type: string
+        default: |
+          {
+            "definitions": [
+              {
+                "title": "Commerce Teaser",
+                "id": "commerce-teaser"
+              }
+            ],
+            "models": [{"id": "commerce-teaser", "fields": []}]
+          }
       component_models_json:
-        description: 'Paste the full content of the generated component-models.json file here.'
+        description: 'Paste the full content of the final component-models.json file here.'
         required: true
         type: string
         default: |
@@ -35,15 +49,11 @@ on:
             {
               "id": "commerce-teaser",
               "fields": [
-                {"name": "commerce-teaser-title", "component": "text"},
-                {"name": "commerce-teaser-price", "component": "text"},
-                {"name": "commerce-teaser-description", "component": "richtext"},
-                {"name": "commerce-teaser-image", "component": "reference"},
-                {"name": "commerce-teaser-imageAlt", "component": "text"},
-                {"name": "custom-button-link", "component": "aem-content"},
-                {"name": "custom-button-label", "component": "text"},
-                {"name": "custom-button-target", "component": "select"},
-                {"name": "classes", "component": "multiselect"}
+                {"name": "commerce-teaser-title"}, {"name": "commerce-teaser-price"},
+                {"name": "commerce-teaser-description"}, {"name": "commerce-teaser-image", "component": "reference"},
+                {"name": "commerce-teaser-imageAlt"}, {"name": "custom-button-link"},
+                {"name": "custom-button-label"}, {"name": "custom-button-target"},
+                {"name": "classes"}
               ]
             }
           ]
@@ -66,29 +76,27 @@ jobs:
         env:
           DEMO_JSON_INPUT: ${{ github.event.inputs.demo_data_json }}
           MODELS_JSON_INPUT: ${{ github.event.inputs.component_models_json }}
+          SOURCE_MODEL_INPUT: ${{ github.event.inputs.source_model_json }}
         run: |
           echo "$DEMO_JSON_INPUT" > demo_data.json
           echo "$MODELS_JSON_INPUT" > component-models.json
+          echo "$SOURCE_MODEL_INPUT" > source_model.json
           
           COMPONENT_NAME="${{ github.event.inputs.component_name }}"
-          COMPILED_MODELS_FILE="component-models.json"
           
-          # --- CORRECTED: Generate NAME_VAL safely outside of jq ---
-          MODEL_FIELDS_JSON_ARRAY=$(jq -r --arg compName "$COMPONENT_NAME" '[.[] | select(.id == $compName) | .fields[].name] | unique' "$COMPILED_MODELS_FILE")
-          FILTER_VAL="$COMPONENT_NAME"
-          MODEL_VAL="$COMPONENT_NAME"
-          # Create the properly formatted name in a separate, clean step
-          NAME_VAL=$(echo "$COMPONENT_NAME" | sed -r 's/(^|-)([a-z])/\U\2/g' | sed 's/-/ /g')
-
+          # --- CORRECTED: Extract the name from the "title" field in the source model ---
+          MODEL_FIELDS_JSON_ARRAY=$(jq -r --arg compName "$COMPONENT_NAME" '[.[] | select(.id == $compName) | .fields[].name] | unique' component-models.json)
+          NAME_VAL=$(jq -r '.definitions[0].title' source_model.json)
+          
           METADATA_JSON=$(jq -n \
-            --arg filter "$FILTER_VAL" \
-            --arg model "$MODEL_VAL" \
+            --arg filter "$COMPONENT_NAME" \
+            --arg model "$COMPONENT_NAME" \
             --arg name "$NAME_VAL" \
             --argjson modelFields "$MODEL_FIELDS_JSON_ARRAY" \
             '{filter: $filter, model: $model, name: $name, modelFields: $modelFields}')
           
           AI_CONTENT_JSON=$(cat demo_data.json)
-          IMAGE_FIELD_NAME=$(jq -r --arg compName "$COMPONENT_NAME" '.[] | select(.id == $compName) | .fields[] | select(.component == "reference") | .name' "$COMPILED_MODELS_FILE" | head -n 1)
+          IMAGE_FIELD_NAME=$(jq -r --arg compName "$COMPONENT_NAME" '.[] | select(.id == $compName) | .fields[] | select(.component == "reference") | .name' component-models.json | head -n 1)
 
           MERGED_JSON=$(jq -n --argjson ai_content "$AI_CONTENT_JSON" --argjson meta "$METADATA_JSON" '$ai_content + $meta')
           
@@ -107,5 +115,4 @@ jobs:
           
           TARGET_URL="${{ github.event.inputs.target_aem_node_url }}"
           
-          echo "Posting component to AEM at: $TARGET_URL"
           curl -v --fail-with-body "$TARGET_URL" -u "${AEM_USERNAME}:${AEM_PASSWORD}" -H "Content-Type: application/x-www-form-urlencoded; charset=UTF-8" --data-raw "$FINAL_FORM_DATA"
