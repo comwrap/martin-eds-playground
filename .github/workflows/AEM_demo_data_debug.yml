@@ -1,0 +1,117 @@
+name: Debug AEM Component Creation (Step 11)
+
+on:
+  workflow_dispatch:
+    inputs:
+      component_name:
+        description: 'The name of the component (e.g., commerce-teaser).'
+        required: true
+        default: 'commerce-teaser'
+      target_aem_node_url:
+        description: 'The full URL of the AEM node to update (e.g., .../jcr:content/root/section_0/block).'
+        required: true
+        default: 'https://author-p24706-e491522.adobeaemcloud.com/content/martin-eds-playground/AI-Template-Dont-delete/AEMCP-100/jcr:content/root/section_0/block'
+      demo_data_json:
+        description: 'Paste the full content of the generated demo_data.json file here.'
+        required: true
+        type: string
+        default: |
+          {
+            "commerce-teaser-title": "AI-Generated Premium Headphones",
+            "commerce-teaser-price": "$349.99",
+            "commerce-teaser-description": "Experience pristine audio with these AI-designed headphones.",
+            "commerce-teaser-image": "/will/be/overwritten.jpg",
+            "commerce-teaser-imageAlt": "AI-Generated headphones image",
+            "custom-button-link": "/products/ai-headphones",
+            "custom-button-label": "Learn More",
+            "custom-button-target": "_blank",
+            "classes": ["primary", "featured"]
+          }
+      component_models_json:
+        description: 'Paste the full content of the generated component-models.json file here.'
+        required: true
+        type: string
+        default: |
+          [
+            {
+              "id": "commerce-teaser",
+              "fields": [
+                {"name": "commerce-teaser-title", "component": "text"},
+                {"name": "commerce-teaser-price", "component": "text"},
+                {"name": "commerce-teaser-description", "component": "richtext"},
+                {"name": "commerce-teaser-image", "component": "reference"},
+                {"name": "commerce-teaser-imageAlt", "component": "text"},
+                {"name": "custom-button-link", "component": "aem-content"},
+                {"name": "custom-button-label", "component": "text"},
+                {"name": "custom-button-target", "component": "select"},
+                {"name": "classes", "component": "multiselect"}
+              ]
+            }
+          ]
+jobs:
+  test-aem-component-creation:
+    runs-on: ubuntu-latest
+    container: node:latest
+
+    env:
+      AEM_URL: ${{ secrets.AEM_URL }}
+      AEM_USERNAME: ${{ secrets.AEM_USERNAME }}
+      AEM_PASSWORD: ${{ secrets.AEM_PASSWORD }}
+
+    steps:
+      - name: Install Dependencies
+        run: apt-get update -y && apt-get install -y --no-install-recommends jq
+
+      - name: Prepare and Execute AEM Update
+        shell: bash
+        run: |
+          # --- Write inputs to temporary files ---
+          echo "${{ github.event.inputs.demo_data_json }}" > demo_data.json
+          echo "${{ github.event.inputs.component_models_json }}" > component-models.json
+          
+          COMPONENT_NAME="${{ github.event.inputs.component_name }}"
+          COMPILED_MODELS_FILE="component-models.json"
+          
+          # --- Start of logic copied from main workflow's Step 11 ---
+
+          # 1. Generate METADATA
+          MODEL_FIELDS_JSON_ARRAY=$(jq -r --arg compName "$COMPONENT_NAME" '[.[] | select(.id == $compName) | .fields[].name] | unique' "$COMPILED_MODELS_FILE")
+          METADATA_JSON=$(jq -n \
+            --arg filter "$COMPONENT_NAME" \
+            --arg model "$COMPONENT_NAME" \
+            --arg name "$(echo "$COMPONENT_NAME" | sed -r 's/(^|-)([a-z])/\U\2/g' | sed 's/-/ /g')" \
+            --argjson modelFields "$MODEL_FIELDS_JSON_ARRAY" \
+            '{filter: $filter, model: $model, name: $name, modelFields: $modelFields}')
+          
+          # 2. Read AI content and discover the dynamic image field name
+          AI_CONTENT_JSON=$(cat demo_data.json)
+          IMAGE_FIELD_NAME=$(jq -r --arg compName "$COMPONENT_NAME" '.[] | select(.id == $compName) | .fields[] | select(.component == "reference") | .name' "$COMPILED_MODELS_FILE" | head -n 1)
+
+          # 3. Merge AI content with metadata
+          # Note: No longer renaming keys, assuming AI provides them correctly now.
+          MERGED_JSON=$(jq -s '.[0] * .[1]' <(echo "$AI_CONTENT_JSON") <(echo "$METADATA_JSON"))
+          
+          # 4. Conditionally overwrite the discovered image field with the hardcoded path
+          if [ -n "$IMAGE_FIELD_NAME" ]; then
+            echo "Found image reference field: '$IMAGE_FIELD_NAME'. Setting hardcoded path."
+            FINAL_JSON=$(echo "$MERGED_JSON" | jq --arg fieldName "$IMAGE_FIELD_NAME" --arg imagePath "/content/dam/aco/content-at-scale.png" '. + {($fieldName): $imagePath}')
+          else
+            echo "No image reference field found in model."
+            FINAL_JSON="$MERGED_JSON"
+          fi
+
+          echo "--- Final JSON Object for AEM ---"
+          echo "$FINAL_JSON" | jq .
+
+          # 5. PREPARE and SEND to AEM
+          FORM_DATA=$(echo "$FINAL_JSON" | jq -r 'to_entries | .[] | if .value | type == "array" then .key as $k | .value[] | "\($k)=\(.)" else "\(.key)=\(.value|tostring)" end | @uri' | paste -sd'&')
+          SLING_RESOURCETYPE="core/franklin/components/block/v1/block"
+          FINAL_FORM_DATA="${FORM_DATA}&sling:resourceType=${SLING_RESOURCETYPE}"
+          
+          echo "--- Final Form Data to be Sent (one parameter per line) ---"
+          echo "$FINAL_FORM_DATA" | sed 's/&/\n/g'
+          
+          TARGET_URL="${{ github.event.inputs.target_aem_node_url }}"
+          
+          echo "Posting component to AEM at: $TARGET_URL"
+          curl -v --fail-with-body "$TARGET_URL" -u "${AEM_USERNAME}:${AEM_PASSWORD}" -H "Content-Type: application/x-www-form-urlencoded; charset=UTF-8" --data-raw "$FINAL_FORM_DATA"
