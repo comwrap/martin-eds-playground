@@ -1,4 +1,4 @@
-name: Codex Full Auto (with Self-Correction Loop)
+name: Codex Full Auto (Final with Self-Correction)
 
 on:
   workflow_dispatch:
@@ -52,19 +52,23 @@ jobs:
 
     steps:
       - name: 1. Install System Dependencies
-        run: apt-get update -y && apt-get install -y --no-install-recommends curl jq sed file
+        run: apt-get update -y && apt-get install -y --no-install-recommends curl jq sed file realpath
+
       - name: 2. Checkout Repository
         uses: actions/checkout@v4
         with:
           token: ${{ env.CODEX_PUSH_TOKEN }}
           fetch-depth: 0
+
       - name: 3. Configure Git and Install Codex CLI
         run: |
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "actions-bot@github.com"
           npm install -g @openai/codex
+
       - name: 4. Install Project Dependencies
         run: npm install
+
       - name: 5. Set Workspace Permissions for Non-Root User
         run: |
           chown -R node:node "$GITHUB_WORKSPACE"
@@ -77,17 +81,16 @@ jobs:
             ---
             **Additional Task: Create Demo Data**
             After creating the component files as requested above, you MUST ALSO perform the following action:
-            1. Create a new file named `demo_data.json` inside the new component's directory.
-            2. The content MUST be a single, raw JSON object.
-            3. The keys must correspond to the `name` properties of the fields in the component's model file.
-            4. Populate the JSON with realistic, high-quality demo content.
+            1.  Create a new file named exactly `demo_data.json` inside the new component's directory.
+            2.  The content of this file MUST be a single, raw JSON object.
+            3.  The keys of the JSON object must correspond to the `name` properties of the fields defined in the component's model file you created.
+            4.  Populate the JSON with realistic, high-quality demo content suitable for the component.
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           FEATURE_BRANCH_NAME="feature/$TICKET_ID"
           git checkout -b "$FEATURE_BRANCH_NAME" "origin/$DEFAULT_BRANCH"
           FINAL_PROMPT="${CODEX_PROMPT}${DEMO_DATA_PROMPT}"
           CODEX_CMD_ARGS=("--full-auto" "-m" "$CODEX_MODEL")
-          # (Image handling for initial creation)
           if [ -n "$JIRA_IMAGE_URLS" ] && [ "$JIRA_IMAGE_URLS" != "none" ]; then
             IFS=',' read -ra URL_ARRAY <<< "$JIRA_IMAGE_URLS"; IFS=',' read -ra FILENAME_ARRAY <<< "$JIRA_IMAGE_FILENAMES"
             for i in "${!URL_ARRAY[@]}"; do
@@ -139,31 +142,47 @@ jobs:
         if: steps.main_script.outputs.changes_pushed == 'true'
         shell: bash
         run: |
-          # This is the fully corrected logic for adding the component to the page
+          # This is the fully corrected logic from our debugging sessions
           DEMO_FILE_PATH=$(git diff --name-only HEAD~1 HEAD | grep 'demo_data.json' | head -n 1)
           SOURCE_MODEL_FILE_PATH=$(git diff --name-only HEAD~1 HEAD | grep 'blocks/.*_.*.json' | head -n 1)
           if [ -z "$DEMO_FILE_PATH" ] || [ -z "$SOURCE_MODEL_FILE_PATH" ]; then exit 0; fi
+          
           COMPONENT_NAME=$(basename "$(dirname "$DEMO_FILE_PATH")")
           COMPILED_MODELS_FILE="component-models.json"
+          
+          PARTIAL_PATHS=$(jq -r '.models[].fields[] | select(has("...")) | .["..."] | sub("#/fields$"; "")' "$SOURCE_MODEL_FILE_PATH")
+          EXCLUDE_FIELDS_JSON="[]"
+          for path in $PARTIAL_PATHS; do
+            ABSOLUTE_PARTIAL_PATH=$(realpath -m "$(dirname "$SOURCE_MODEL_FILE_PATH")/$path")
+            if [ -f "$ABSOLUTE_PARTIAL_PATH" ]; then
+              PARTIAL_FIELDS=$(jq -r '[.fields[].name | select(endswith("-link") or endswith("-target"))]' "$ABSOLUTE_PARTIAL_PATH")
+              EXCLUDE_FIELDS_JSON=$(jq -n --argjson current_exclude "$EXCLUDE_FIELDS_JSON" --argjson new_fields "$PARTIAL_FIELDS" '$current_exclude + $new_fields | unique')
+            fi
+          done
+          
           ALL_FIELDS_JSON=$(jq -r --arg compName "$COMPONENT_NAME" '[.[] | select(.id == $compName) | .fields[].name] | unique' "$COMPILED_MODELS_FILE")
-          MODEL_FIELDS_JSON_ARRAY=$(echo "$ALL_FIELDS_JSON" | jq '[.[] | select(. as $name | $name != "custom-button-link" and $name != "custom-button-target")]')
+          MODEL_FIELDS_JSON_ARRAY=$(jq -n --argjson all "$ALL_FIELDS_JSON" --argjson exclude "$EXCLUDE_FIELDS_JSON" '$all - $exclude')
+          
           NAME_VAL=$(jq -r '.definitions[0].title' "$SOURCE_MODEL_FILE_PATH")
           METADATA_JSON=$(jq -n --arg filter "$COMPONENT_NAME" --arg model "$COMPONENT_NAME" --arg name "$NAME_VAL" --argjson modelFields "$MODEL_FIELDS_JSON_ARRAY" '{filter: $filter, model: $model, name: $name, modelFields: $modelFields}')
           AI_CONTENT_JSON=$(cat "$DEMO_FILE_PATH")
           IMAGE_FIELD_NAME=$(jq -r --arg compName "$COMPONENT_NAME" '.[] | select(.id == $compName) | .fields[] | select(.component == "reference") | .name' "$COMPILED_MODELS_FILE" | head -n 1)
           FINAL_JSON=$(jq -n --argjson ai_content "$AI_CONTENT_JSON" --argjson meta "$METADATA_JSON" '$ai_content + $meta' | jq --arg fieldName "$IMAGE_FIELD_NAME" 'if $fieldName and $fieldName != "" then .[$fieldName] = "/content/dam/aco/content-at-scale.png" else . end')
+
           FORM_DATA=$(echo "$FINAL_JSON" | jq -r 'to_entries | .[] | if .value | type == "array" then .key as $k | .value[] | ($k|@uri) + "=" + (. | @uri) else (.key|@uri) + "=" + (.value|tostring|@uri) end' | paste -sd'&')
           SLING_RESOURCETYPE="core/franklin/components/block/v1/block"
           FINAL_FORM_DATA="${FORM_DATA}&sling:resourceType=${SLING_RESOURCETYPE}"
           AEM_PAGE_NAME="${{ steps.sanitize.outputs.aem_page_name }}"
           TARGET_URL="${AEM_URL}${AEM_DEST_PARENT_PATH}/${AEM_PAGE_NAME}/jcr:content/root/section_0/block"
+          
           curl -v --fail-with-body "$TARGET_URL" -u "${AEM_USERNAME}:${AEM_PASSWORD}" -H "Content-Type: application/x-www-form-urlencoded; charset=UTF-8" --data-raw "$FINAL_FORM_DATA"
 
       - name: 13. Review, Fix, and Validate Loop
         id: review_loop
-        if: steps.main_script.outputs.changes_pushed == 'true'
+        if: steps.add_component_step.outputs.changes_pushed == 'true'
         shell: bash
         env:
+          AEM_PAGE_NAME: ${{ steps.sanitize.outputs.aem_page_name }}
           REVIEW_PROMPT_TEMPLATE: |
             You are a Senior Developer performing a QA check. Review the code, HTML, and screenshots.
             If perfect, respond ONLY with the word: PERFECT
@@ -179,14 +198,15 @@ jobs:
             %SCRAPED_DOM%
         run: |
           set -e
-          # --- CORRECTED: All variables are now defined inside the run block ---
           REVIEW_PASSED=false
           FEATURE_BRANCH_NAME="feature/$TICKET_ID"
-          AEM_PAGE_NAME="${{ steps.sanitize.outputs.aem_page_name }}"
+          
+          # All variables are defined inside the run block for safety
           PREVIEW_URL="${AEM_URL}${AEM_DEST_PARENT_PATH}/${AEM_PAGE_NAME}.html?ref=${FEATURE_BRANCH_NAME}"
           ENCODED_URL=$(jq -rn --arg url "$PREVIEW_URL" '$url|@uri')
           AUTH_HEADER=$(echo -n "${AEM_USERNAME}:${AEM_PASSWORD}" | base64)
           TARGET_BLOCK_URL="${AEM_URL}${AEM_DEST_PARENT_PATH}/${AEM_PAGE_NAME}/jcr:content/root/section_0/block"
+          echo "--- Preview URL for this cycle: $PREVIEW_URL"
 
           for i in 1 2; do
             echo "--- Starting Review Cycle #$i ---"
@@ -226,7 +246,7 @@ jobs:
                 echo "Deleting and recreating AEM block...";
                 curl -u "${AEM_USERNAME}:${AEM_PASSWORD}" -X POST -F':operation=delete' "$TARGET_BLOCK_URL"
                 sleep 5
-                bash -c "$(sed -n '/- name: 12. Add New Component to AEM Page/,/^      - name:/p' "$GITHUB_ACTION_PATH" | sed '$d' | tail -n +3)"
+                bash -c "$(sed -n '/- name: 12. Add New Component to AEM Page/,/^      - name: 13/p' "$GITHUB_ACTION_PATH" | sed '$d' | tail -n +3)"
               else
                 echo "AI suggested fixes, but no file changes were made. Assuming review passed."; REVIEW_PASSED=true; break
               fi
