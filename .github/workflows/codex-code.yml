@@ -138,23 +138,38 @@ jobs:
         if: steps.main_script.outputs.changes_pushed == 'true'
         shell: bash
         run: |
-          echo "--- Finding generated component files from last commit ---"
           DEMO_FILE_PATH=$(git diff --name-only HEAD~1 HEAD | grep 'demo_data.json' | head -n 1)
           SOURCE_MODEL_FILE_PATH=$(git diff --name-only HEAD~1 HEAD | grep 'blocks/.*_.*.json' | head -n 1)
-
           if [ -z "$DEMO_FILE_PATH" ] || [ -z "$SOURCE_MODEL_FILE_PATH" ]; then
-            echo "Warning: Critical AI-generated file (demo_data.json or _component.json) is missing. Skipping."
+            echo "Warning: Critical AI-generated file is missing. Skipping."
             exit 0
           fi
           
           COMPONENT_NAME=$(basename "$(dirname "$DEMO_FILE_PATH")")
           COMPILED_MODELS_FILE="component-models.json"
-          echo "Found component: $COMPONENT_NAME"
+          
+          # --- DYNAMICALLY DETERMINE FIELDS TO EXCLUDE ---
+          # 1. Find all partial files referenced in the source model
+          PARTIAL_PATHS=$(jq -r '.models[].fields[] | select(has("...")) | .["..."] | sub("#/fields$"; "")' "$SOURCE_MODEL_FILE_PATH")
+          
+          # 2. Read all field names from those partials to create an exclusion list
+          EXCLUDE_FIELDS_JSON="[]"
+          for path in $PARTIAL_PATHS; do
+            if [ -f "$path" ]; then
+              PARTIAL_FIELDS=$(jq -r '[.fields[].name]' "$path")
+              EXCLUDE_FIELDS_JSON=$(jq -s '.[0] + .[1] | unique' <(echo "$EXCLUDE_FIELDS_JSON") <(echo "$PARTIAL_FIELDS"))
+            fi
+          done
+          echo "--- Dynamically discovered fields to exclude from modelFields ---"
+          echo "$EXCLUDE_FIELDS_JSON" | jq .
 
-          # 1. Generate METADATA using the correct sources
-          # Get the official field list from the final build artifact
-          MODEL_FIELDS_JSON_ARRAY=$(jq -r --arg compName "$COMPONENT_NAME" '[.[] | select(.id == $compName) | .fields[].name] | unique' "$COMPILED_MODELS_FILE")
-          # Get the human-readable name from the source model file's "title"
+          # 3. Get the full list of official field names from the compiled model
+          ALL_FIELDS_JSON=$(jq -r --arg compName "$COMPONENT_NAME" '[.[] | select(.id == $compName) | .fields[].name] | unique' "$COMPILED_MODELS_FILE")
+          
+          # 4. Subtract the excluded fields from the full list to get the correct modelFields
+          MODEL_FIELDS_JSON_ARRAY=$(jq -n --argjson all "$ALL_FIELDS_JSON" --argjson exclude "$EXCLUDE_FIELDS_JSON" '$all - $exclude')
+          
+          # --- PROCEED WITH CORRECT DATA ---
           NAME_VAL=$(jq -r '.definitions[0].title' "$SOURCE_MODEL_FILE_PATH")
           
           METADATA_JSON=$(jq -n \
@@ -163,27 +178,15 @@ jobs:
             --arg name "$NAME_VAL" \
             --argjson modelFields "$MODEL_FIELDS_JSON_ARRAY" \
             '{filter: $filter, model: $model, name: $name, modelFields: $modelFields}')
-          
-          # 2. Read AI content and discover the dynamic image field name
+            
           AI_CONTENT_JSON=$(cat "$DEMO_FILE_PATH")
           IMAGE_FIELD_NAME=$(jq -r --arg compName "$COMPONENT_NAME" '.[] | select(.id == $compName) | .fields[] | select(.component == "reference") | .name' "$COMPILED_MODELS_FILE" | head -n 1)
 
-          # 3. Merge AI content with metadata
-          MERGED_JSON=$(jq -n --argjson ai_content "$AI_CONTENT_JSON" --argjson meta "$METADATA_JSON" '$ai_content + $meta')
-          
-          # 4. Conditionally overwrite the discovered image field with the hardcoded path
-          if [ -n "$IMAGE_FIELD_NAME" ]; then
-            echo "Found image reference field: '$IMAGE_FIELD_NAME'. Setting hardcoded path."
-            FINAL_JSON=$(echo "$MERGED_JSON" | jq --arg fieldName "$IMAGE_FIELD_NAME" --arg imagePath "/content/dam/aco/content-at-scale.png" '. + {($fieldName): $imagePath}')
-          else
-            echo "No image reference field found in model."
-            FINAL_JSON="$MERGED_JSON"
-          fi
+          FINAL_JSON=$(jq -n --argjson ai_content "$AI_CONTENT_JSON" --argjson meta "$METADATA_JSON" '$ai_content + $meta' | jq --arg fieldName "$IMAGE_FIELD_NAME" 'if $fieldName and $fieldName != "" then .[$fieldName] = "/content/dam/aco/content-at-scale.png" else . end')
 
           echo "--- Final JSON Object for AEM ---"
           echo "$FINAL_JSON" | jq .
 
-          # 5. PREPARE and SEND to AEM
           FORM_DATA=$(echo "$FINAL_JSON" | jq -r 'to_entries | .[] | if .value | type == "array" then .key as $k | .value[] | ($k|@uri) + "=" + (. | @uri) else (.key|@uri) + "=" + (.value|tostring|@uri) end' | paste -sd'&')
           SLING_RESOURCETYPE="core/franklin/components/block/v1/block"
           FINAL_FORM_DATA="${FORM_DATA}&sling:resourceType=${SLING_RESOURCETYPE}"
@@ -191,7 +194,6 @@ jobs:
           AEM_PAGE_NAME="${{ steps.sanitize.outputs.aem_page_name }}"
           TARGET_URL="${AEM_URL}${AEM_DEST_PARENT_PATH}/${AEM_PAGE_NAME}/jcr:content/root/section_0/block"
           
-          echo "Posting component to AEM at: $TARGET_URL"
           curl -v --fail-with-body "$TARGET_URL" -u "${AEM_USERNAME}:${AEM_PASSWORD}" -H "Content-Type: application/x-www-form-urlencoded; charset=UTF-8" --data-raw "$FINAL_FORM_DATA"
       - name: 12. Notify N8N to Create Pull Request
         if: steps.main_script.outputs.changes_pushed == 'true'
