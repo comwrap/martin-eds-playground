@@ -1,4 +1,4 @@
-name: Codex Full Auto (Final with Self-Correction)
+name: Codex Full Auto (Final and Generic)
 
 on:
   workflow_dispatch:
@@ -35,7 +35,6 @@ jobs:
       JIRA_API_USER: ${{ secrets.JIRA_API_USER }}
       JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
       CODEX_PUSH_TOKEN: ${{ secrets.CODEX_PUSH_TOKEN }}
-      SCREENSHOTONE_API_KEY: ${{ secrets.SCREENSHOTONE_API_KEY }}
       CODEX_PROMPT: |
         ${{ github.event.inputs.CODEX_PROMPT || github.event.client_payload.CODEX_PROMPT }}
       TICKET_ID: ${{ github.event.inputs.TICKET_ID || github.event.client_payload.TICKET_ID }}
@@ -52,7 +51,8 @@ jobs:
 
     steps:
       - name: 1. Install System Dependencies
-        run: apt-get update -y && apt-get install -y --no-install-recommends curl jq sed file realpath
+        run: |
+          apt-get update -y && apt-get install -y --no-install-recommends curl jq sed file
       - name: 2. Checkout Repository
         uses: actions/checkout@v4
         with:
@@ -68,6 +68,7 @@ jobs:
       - name: 5. Set Workspace Permissions for Non-Root User
         run: |
           chown -R node:node "$GITHUB_WORKSPACE"
+
       - name: 6. Execute Main AI, Build, and Git Logic
         id: main_script
         shell: bash
@@ -76,10 +77,10 @@ jobs:
             ---
             **Additional Task: Create Demo Data**
             After creating the component files as requested above, you MUST ALSO perform the following action:
-            1. Create a new file named `demo_data.json` inside the new component's directory.
-            2. The content MUST be a single, raw JSON object.
-            3. The keys must correspond to the `name` properties of the fields in the component's model file.
-            4. Populate the JSON with realistic, high-quality demo content.
+            1.  Create a new file named exactly `demo_data.json` inside the new component's directory (e.g., `blocks/your-new-component/demo_data.json`).
+            2.  The content of this file MUST be a single, raw JSON object. Do not include any explanations or markdown formatting.
+            3.  The keys of the JSON object must correspond to the `name` properties of the fields defined in the component's model file you created.
+            4.  Populate the JSON with realistic, high-quality demo content suitable for the component.
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           FEATURE_BRANCH_NAME="feature/$TICKET_ID"
@@ -87,22 +88,32 @@ jobs:
           FINAL_PROMPT="${CODEX_PROMPT}${DEMO_DATA_PROMPT}"
           CODEX_CMD_ARGS=("--full-auto" "-m" "$CODEX_MODEL")
           if [ -n "$JIRA_IMAGE_URLS" ] && [ "$JIRA_IMAGE_URLS" != "none" ]; then
-            IFS=',' read -ra URL_ARRAY <<< "$JIRA_IMAGE_URLS"; IFS=',' read -ra FILENAME_ARRAY <<< "$JIRA_IMAGE_FILENAMES"
-            for i in "${!URL_ARRAY[@]}"; do
-              URL=$(echo "${URL_ARRAY[$i]}" | xargs); FILENAME=$(echo "${FILENAME_ARRAY[$i]}" | xargs | sed 's/[^a-zA-Z0-9._-]/_/g')
-              if [ -z "$URL" ] || [ -z "$FILENAME" ]; then continue; fi
-              DOWNLOAD_PATH="jira_dl_image_${i}_${FILENAME}"; HTTP_STATUS=$(curl -sSL -w "%{http_code}" -o "$DOWNLOAD_PATH" -u "${JIRA_API_USER}:${JIRA_API_TOKEN}" "$URL")
-              if [ "$HTTP_STATUS" -eq 200 ] && [ -s "$DOWNLOAD_PATH" ]; then CODEX_CMD_ARGS+=("-i" "$DOWNLOAD_PATH"); fi
+            IFS=',' read -ra IMAGE_URL_ARRAY <<< "$JIRA_IMAGE_URLS"
+            IFS=',' read -ra IMAGE_FILENAME_ARRAY <<< "$JIRA_IMAGE_FILENAMES"
+            for (( i=0; i<${#IMAGE_URL_ARRAY[@]}; i++ )); do
+              IMG_URL=$(echo "${IMAGE_URL_ARRAY[$i]}" | xargs)
+              SAFE_FILENAME=$(echo "${IMAGE_FILENAME_ARRAY[$i]}" | xargs | sed 's/[^a-zA-Z0-9._-]/_/g')
+              if [ -z "$IMG_URL" ] || [ -z "$SAFE_FILENAME" ]; then continue; fi
+              DOWNLOAD_PATH="jira_dl_image_${i}_${SAFE_FILENAME}"
+              HTTP_STATUS=$(curl -sSL -w "%{http_code}" -o "$DOWNLOAD_PATH" -u "${JIRA_API_USER}:${JIRA_API_TOKEN}" "$IMG_URL")
+              if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ] && [ -s "$DOWNLOAD_PATH" ]; then
+                CODEX_CMD_ARGS+=("-i" "$DOWNLOAD_PATH")
+              fi
             done
           fi
           codex exec "${CODEX_CMD_ARGS[@]}" "$FINAL_PROMPT"
           rm -f jira_dl_image_*
-          echo "Compiling EDS Models..."; npm run build:json; echo "EDS Models build completed."
+          echo "Compiling EDS Models..."
+          npm run build:json
+          echo "EDS Models build completed."
           if [ -n "$(git status --porcelain)" ]; then
-            git add -A; git commit -m "feat($TICKET_ID): Apply AI-generated changes [skip ci]"; git push -u origin "$FEATURE_BRANCH_NAME"
+            git add -A
+            git commit -m "feat($TICKET_ID): Apply AI-generated changes [skip ci]"
+            git push -u origin "$FEATURE_BRANCH_NAME"
             echo "changes_pushed=true" >> $GITHUB_OUTPUT
           else
-            echo "No file changes detected."; echo "changes_pushed=false" >> $GITHUB_OUTPUT
+            echo "No file changes detected."
+            echo "changes_pushed=false" >> $GITHUB_OUTPUT
           fi
 
       - name: 7. Sanitize Ticket ID for AEM
@@ -118,22 +129,20 @@ jobs:
         if: steps.main_script.outputs.changes_pushed == 'true'
         run: |
           curl --fail-with-body "${AEM_URL}/bin/wcmcommand" -u "${AEM_USERNAME}:${AEM_PASSWORD}" -H 'Content-Type: application/x-www-form-urlencoded; charset=UTF-8' --data-raw "_charset_=UTF-8&cmd=copyPage&srcPath=${AEM_SRC_PATH}&destParentPath=${AEM_DEST_PARENT_PATH}&before=&destName=${{ steps.sanitize.outputs.aem_page_name }}&shallow=false"
-      - name: 10. Wait for AEM Repository to Settle
+      - name: 10. Update AEM Page Title
         if: steps.main_script.outputs.changes_pushed == 'true'
         run: |
-          echo "Waiting 5 seconds for AEM to finalize page creation..."
-          sleep 5
+          curl --fail-with-body "${AEM_URL}${AEM_DEST_PARENT_PATH}/${{ steps.sanitize.outputs.aem_page_name }}/jcr:content" -u "${AEM_USERNAME}:${AEM_PASSWORD}" -H 'Content-Type: application/x-www-form-urlencoded; charset=UTF-8' --data-raw "jcr:title=${{ steps.sanitize.outputs.aem_page_name }}"
       - name: 11. Update AEM Page Title
         if: steps.main_script.outputs.changes_pushed == 'true'
         run: |
           curl --fail-with-body "${AEM_URL}${AEM_DEST_PARENT_PATH}/${{ steps.sanitize.outputs.aem_page_name }}/jcr:content" -u "${AEM_USERNAME}:${AEM_PASSWORD}" -H 'Content-Type: application/x-www-form-urlencoded; charset=UTF-8' --data-raw "jcr:title=${{ steps.sanitize.outputs.aem_page_name }}"
-
-      - name: 12. Add New Component to AEM Page
-        id: add_component_step
+      - name: 12. Add New Component to AEM Page from Demo Data
         if: steps.main_script.outputs.changes_pushed == 'true'
         shell: bash
         run: |
-          # This is the fully corrected logic from our debugging sessions
+          # This is the original, correct logic that dynamically excludes fields from partials,
+          # but is now corrected to ONLY exclude link/target and not the label.
           DEMO_FILE_PATH=$(git diff --name-only HEAD~1 HEAD | grep 'demo_data.json' | head -n 1)
           SOURCE_MODEL_FILE_PATH=$(git diff --name-only HEAD~1 HEAD | grep 'blocks/.*_.*.json' | head -n 1)
           if [ -z "$DEMO_FILE_PATH" ] || [ -z "$SOURCE_MODEL_FILE_PATH" ]; then exit 0; fi
@@ -146,7 +155,8 @@ jobs:
           for path in $PARTIAL_PATHS; do
             ABSOLUTE_PARTIAL_PATH=$(realpath -m "$(dirname "$SOURCE_MODEL_FILE_PATH")/$path")
             if [ -f "$ABSOLUTE_PARTIAL_PATH" ]; then
-              PARTIAL_FIELDS=$(jq -r '[.fields[].name | select(endswith("-link") or endswith("-target"))]' "$ABSOLUTE_PARTIAL_PATH")
+              # CORRECTED: Only exclude fields ending in -link or -target, not all fields from the partial.
+              PARTIAL_FIELDS=$(jq -r '[.fields[] | .name | select(endswith("-link") or endswith("-target"))]' "$ABSOLUTE_PARTIAL_PATH")
               EXCLUDE_FIELDS_JSON=$(jq -n --argjson current_exclude "$EXCLUDE_FIELDS_JSON" --argjson new_fields "$PARTIAL_FIELDS" '$current_exclude + $new_fields | unique')
             fi
           done
@@ -155,6 +165,7 @@ jobs:
           MODEL_FIELDS_JSON_ARRAY=$(jq -n --argjson all "$ALL_FIELDS_JSON" --argjson exclude "$EXCLUDE_FIELDS_JSON" '$all - $exclude')
           
           NAME_VAL=$(jq -r '.definitions[0].title' "$SOURCE_MODEL_FILE_PATH")
+          
           METADATA_JSON=$(jq -n --arg filter "$COMPONENT_NAME" --arg model "$COMPONENT_NAME" --arg name "$NAME_VAL" --argjson modelFields "$MODEL_FIELDS_JSON_ARRAY" '{filter: $filter, model: $model, name: $name, modelFields: $modelFields}')
           AI_CONTENT_JSON=$(cat "$DEMO_FILE_PATH")
           IMAGE_FIELD_NAME=$(jq -r --arg compName "$COMPONENT_NAME" '.[] | select(.id == $compName) | .fields[] | select(.component == "reference") | .name' "$COMPILED_MODELS_FILE" | head -n 1)
@@ -163,92 +174,14 @@ jobs:
           FORM_DATA=$(echo "$FINAL_JSON" | jq -r 'to_entries | .[] | if .value | type == "array" then .key as $k | .value[] | ($k|@uri) + "=" + (. | @uri) else (.key|@uri) + "=" + (.value|tostring|@uri) end' | paste -sd'&')
           SLING_RESOURCETYPE="core/franklin/components/block/v1/block"
           FINAL_FORM_DATA="${FORM_DATA}&sling:resourceType=${SLING_RESOURCETYPE}"
+          
           AEM_PAGE_NAME="${{ steps.sanitize.outputs.aem_page_name }}"
           TARGET_URL="${AEM_URL}${AEM_DEST_PARENT_PATH}/${AEM_PAGE_NAME}/jcr:content/root/section_0/block"
           
           curl -v --fail-with-body "$TARGET_URL" -u "${AEM_USERNAME}:${AEM_PASSWORD}" -H "Content-Type: application/x-www-form-urlencoded; charset=UTF-8" --data-raw "$FINAL_FORM_DATA"
 
-      - name: 13. Review, Fix, and Validate Loop
-        id: review_loop
-        # --- CORRECTED: Point to the correct step's output ---
+      - name: 13. Notify N8N to Create Pull Request
         if: steps.main_script.outputs.changes_pushed == 'true'
-        shell: bash
-        env:
-          AEM_PAGE_NAME: ${{ steps.sanitize.outputs.aem_page_name }}
-          REVIEW_PROMPT_TEMPLATE: |
-            You are a Senior Developer performing a QA check. Review the code, HTML, and screenshots.
-            If perfect, respond ONLY with the word: PERFECT
-            If buggy, provide the necessary code changes to fix it. Update demo_data.json if needed.
-
-            Initial Requirements:
-            %CODEX_PROMPT%
-
-            Code:
-            %CODE_CONTEXT%
-
-            Live DOM:
-            %SCRAPED_DOM%
-        run: |
-          set -e
-          REVIEW_PASSED=false
-          FEATURE_BRANCH_NAME="feature/$TICKET_ID"
-          
-          PREVIEW_URL="${AEM_URL}${AEM_DEST_PARENT_PATH}/${AEM_PAGE_NAME}.html?ref=${FEATURE_BRANCH_NAME}"
-          ENCODED_URL=$(jq -rn --arg url "$PREVIEW_URL" '$url|@uri')
-          AUTH_HEADER=$(echo -n "${AEM_USERNAME}:${AEM_PASSWORD}" | base64)
-          TARGET_BLOCK_URL="${AEM_URL}${AEM_DEST_PARENT_PATH}/${AEM_PAGE_NAME}/jcr:content/root/section_0/block"
-          echo "--- Preview URL for this cycle: $PREVIEW_URL"
-
-          for i in 1 2; do
-            echo "--- Starting Review Cycle #$i ---"
-            SCRAPED_DOM=$(curl -s -u "${AEM_USERNAME}:${AEM_PASSWORD}" "$PREVIEW_URL")
-            CHANGED_FILES=$(git diff --name-only "origin/$DEFAULT_BRANCH" HEAD)
-            CODE_CONTEXT=""; for FILE in $CHANGED_FILES; do CODE_CONTEXT+="--- START: $FILE ---\n$(cat "$FILE")\n--- END: $FILE ---\n\n"; done
-            
-            REVIEW_CMD_ARGS=("--full-auto" "-m" "$CODEX_MODEL")
-            curl -o "desktop-screenshot.jpg" "https://api.screenshotone.com/take?access_key=${SCREENSHOTONE_API_KEY}&url=${ENCODED_URL}&format=jpg&timeout=60&authorization=Basic ${AUTH_HEADER}"
-            curl -o "mobile-screenshot.jpg" "https://api.screenshotone.com/take?access_key=${SCREENSHOTONE_API_KEY}&url=${ENCODED_URL}&viewport_device=iphone_11_pro&format=jpg&timeout=60&authorization=Basic ${AUTH_HEADER}"
-            REVIEW_CMD_ARGS+=("-i" "desktop-screenshot.jpg" "-i" "mobile-screenshot.jpg")
-
-            if [ -n "$JIRA_IMAGE_URLS" ] && [ "$JIRA_IMAGE_URLS" != "none" ]; then
-              IFS=',' read -ra URL_ARRAY <<< "$JIRA_IMAGE_URLS"; IFS=',' read -ra FILENAME_ARRAY <<< "$JIRA_IMAGE_FILENAMES"
-              for j in "${!URL_ARRAY[@]}"; do
-                URL=$(echo "${URL_ARRAY[$j]}" | xargs); FILENAME=$(echo "${FILENAME_ARRAY[$j]}" | xargs | sed 's/[^a-zA-Z0-9._-]/_/g')
-                if [ -z "$URL" ] || [ -z "$FILENAME" ]; then continue; fi
-                DOWNLOAD_PATH="jira_review_image_${j}_${FILENAME}"; HTTP_STATUS=$(curl -sSL -w "%{http_code}" -o "$DOWNLOAD_PATH" -u "${JIRA_API_USER}:${JIRA_API_TOKEN}" "$URL")
-                if [ "$HTTP_STATUS" -eq 200 ] && [ -s "$DOWNLOAD_PATH" ]; then REVIEW_CMD_ARGS+=("-i" "$DOWNLOAD_PATH"); fi
-              done
-            fi
-            
-            FINAL_REVIEW_PROMPT="${REVIEW_PROMPT_TEMPLATE/'%CODEX_PROMPT%'/"$CODEX_PROMPT"}"
-            FINAL_REVIEW_PROMPT="${FINAL_REVIEW_PROMPT/'%CODE_CONTEXT%'/"$CODE_CONTEXT"}"
-            FINAL_REVIEW_PROMPT="${FINAL_REVIEW_PROMPT/'%SCRAPED_DOM%'/"$SCRAPED_DOM"}"
-
-            codex exec "${REVIEW_CMD_ARGS[@]}" "$FINAL_REVIEW_PROMPT" 2> codex_output.log
-            rm -f desktop-screenshot.jpg mobile-screenshot.jpg jira_review_image_*
-
-            if grep -q "PERFECT" codex_output.log; then
-              echo "--- Review Passed! ---"; REVIEW_PASSED=true; break
-            else
-              echo "--- Review Failed. AI has provided fixes. ---"
-              if [ -n "$(git status --porcelain)" ]; then
-                git add -A; git commit -m "feat($TICKET_ID): Apply AI bug fixes (Attempt $i)"; git push
-                echo "Waiting for fixes to deploy..."; sleep 20
-                echo "Deleting and recreating AEM block...";
-                curl -u "${AEM_USERNAME}:${AEM_PASSWORD}" -X POST -F':operation=delete' "$TARGET_BLOCK_URL"
-                sleep 5
-                # Re-run the logic from Step 12 by calling it directly
-                bash -c "$(sed -n '/- name: 12. Add New Component to AEM Page/,/^      - name: 13/p' "$GITHUB_ACTION_PATH" | sed '$d' | tail -n +3)"
-              else
-                echo "AI suggested fixes, but no file changes were made. Assuming review passed."; REVIEW_PASSED=true; break
-              fi
-            fi
-          done
-          
-          if [ "$REVIEW_PASSED" = true ]; then echo "validation_status=success" >> $GITHUB_OUTPUT; else echo "validation_status=failed" >> $GITHUB_OUTPUT; fi
-
-      - name: 14. Notify N8N to Create Pull Request
-        if: steps.review_loop.outputs.validation_status == 'success'
         shell: bash
         run: |
           FEATURE_BRANCH_NAME="feature/$TICKET_ID"; LATEST_COMMIT_SHA=$(git rev-parse HEAD); REPO_OWNER=$(echo "$GH_REPO" | cut -d'/' -f1); REPO_NAME=$(echo "$GH_REPO" | cut -d'/' -f2); SANITIZED_BRANCH_NAME=$(echo "$FEATURE_BRANCH_NAME" | sed 's/\//-/g'); PREVIEW_URL="https://$SANITIZED_BRANCH_NAME--$REPO_NAME--$REPO_OWNER.hlx.page"; PR_TITLE="feat($TICKET_ID): Implement feature $TICKET_ID (AI Assisted)"; PR_BODY=$(cat <<EOF
