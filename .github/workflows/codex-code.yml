@@ -163,6 +163,21 @@ jobs:
         id: review_loop
         if: steps.main_script.outputs.changes_pushed == 'true'
         shell: bash
+        # CORRECTED: The complex multi-line prompt is now in the env block
+        env:
+          REVIEW_PROMPT_TEMPLATE: |
+            You are a Senior Developer performing a QA check. Review the code, HTML, and screenshots.
+            If perfect, respond ONLY with the word: PERFECT
+            If buggy, provide the necessary code changes to fix it. Update demo_data.json if needed.
+
+            Initial Requirements:
+            %CODEX_PROMPT%
+
+            Code:
+            %CODE_CONTEXT%
+
+            Live DOM:
+            %SCRAPED_DOM%
         run: |
           set -e
           REVIEW_PASSED=false
@@ -175,12 +190,10 @@ jobs:
 
           for i in 1 2; do
             echo "--- Starting Review Cycle #$i ---"
-            # Gather context
             SCRAPED_DOM=$(curl -s -u "${AEM_USERNAME}:${AEM_PASSWORD}" "$PREVIEW_URL")
             CHANGED_FILES=$(git diff --name-only "origin/$DEFAULT_BRANCH" HEAD)
             CODE_CONTEXT=""; for FILE in $CHANGED_FILES; do CODE_CONTEXT+="--- START: $FILE ---\n$(cat "$FILE")\n--- END: $FILE ---\n\n"; done
             
-            # Prepare AI command args, including screenshots and Jira images
             REVIEW_CMD_ARGS=("--full-auto" "-m" "$CODEX_MODEL")
             curl -o "desktop-screenshot.jpg" "https://api.screenshotone.com/take?access_key=${SCREENSHOTONE_API_KEY}&url=${ENCODED_URL}&format=jpg&timeout=60&authorization=Basic ${AUTH_HEADER}"
             curl -o "mobile-screenshot.jpg" "https://api.screenshotone.com/take?access_key=${SCREENSHOTONE_API_KEY}&url=${ENCODED_URL}&viewport_device=iphone_11_pro&format=jpg&timeout=60&authorization=Basic ${AUTH_HEADER}"
@@ -195,19 +208,13 @@ jobs:
                 if [ "$HTTP_STATUS" -eq 200 ] && [ -s "$DOWNLOAD_PATH" ]; then REVIEW_CMD_ARGS+=("-i" "$DOWNLOAD_PATH"); fi
               done
             fi
+            
+            # CORRECTED: Use the env var and replace placeholders
+            FINAL_REVIEW_PROMPT="${REVIEW_PROMPT_TEMPLATE/'%CODEX_PROMPT%'/"$CODEX_PROMPT"}"
+            FINAL_REVIEW_PROMPT="${FINAL_REVIEW_PROMPT/'%CODE_CONTEXT%'/"$CODE_CONTEXT"}"
+            FINAL_REVIEW_PROMPT="${FINAL_REVIEW_PROMPT/'%SCRAPED_DOM%'/"$SCRAPED_DOM"}"
 
-            REVIEW_PROMPT=$(cat <<EOF
-            You are a Senior Developer performing a QA check. Review the code, HTML, and screenshots.
-            If perfect, respond ONLY with the word: PERFECT
-            If buggy, provide the necessary code changes to fix it. Update demo_data.json if needed.
-            Initial Requirements: ${CODEX_PROMPT}
-            Code: ${CODE_CONTEXT}
-            Live DOM: ${SCRAPED_DOM}
-            EOF
-            )
-
-            # Ask AI for Review
-            codex exec "${REVIEW_CMD_ARGS[@]}" "$REVIEW_PROMPT" 2> codex_output.log
+            codex exec "${REVIEW_CMD_ARGS[@]}" "$FINAL_REVIEW_PROMPT" 2> codex_output.log
             rm -f desktop-screenshot.jpg mobile-screenshot.jpg jira_review_image_*
 
             if grep -q "PERFECT" codex_output.log; then
@@ -220,7 +227,6 @@ jobs:
                 echo "Deleting and recreating AEM block...";
                 curl -u "${AEM_USERNAME}:${AEM_PASSWORD}" -X POST -F':operation=delete' "$TARGET_BLOCK_URL"
                 sleep 5
-                # Re-run the logic from Step 12 by calling it directly
                 bash -c "$(sed -n '/- name: 12. Add New Component to AEM Page/,/^      - name:/p' "$GITHUB_ACTION_PATH" | sed '$d' | tail -n +3)"
               else
                 echo "AI suggested fixes, but no file changes were made. Assuming review passed."; REVIEW_PASSED=true; break
@@ -228,7 +234,7 @@ jobs:
             fi
           done
           
-          if [ "$REVIEW_PASSED" = true ]; then echo "validation_status=success"; else echo "validation_status=failed"; fi >> $GITHUB_OUTPUT
+          if [ "$REVIEW_PASSED" = true ]; then echo "validation_status=success" >> $GITHUB_OUTPUT; else echo "validation_status=failed" >> $GITHUB_OUTPUT; fi
 
       - name: 14. Notify N8N to Create Pull Request
         if: steps.review_loop.outputs.validation_status == 'success'
