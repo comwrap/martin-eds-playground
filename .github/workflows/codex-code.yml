@@ -52,8 +52,7 @@ jobs:
 
     steps:
       - name: 1. Install System Dependencies
-        run: |
-          apt-get update -y && apt-get install -y --no-install-recommends curl jq sed file
+        run: apt-get update -y && apt-get install -y --no-install-recommends curl jq sed file realpath
       - name: 2. Checkout Repository
         uses: actions/checkout@v4
         with:
@@ -69,7 +68,6 @@ jobs:
       - name: 5. Set Workspace Permissions for Non-Root User
         run: |
           chown -R node:node "$GITHUB_WORKSPACE"
-
       - name: 6. Execute Main AI, Build, and Git Logic
         id: main_script
         shell: bash
@@ -113,22 +111,18 @@ jobs:
         run: |
           SANITIZED_NAME=$(echo "${TICKET_ID}" | sed 's/\//-/g')
           echo "aem_page_name=$SANITIZED_NAME" >> $GITHUB_OUTPUT
-
       - name: 8. Wait for EDS Deployment
         if: steps.main_script.outputs.changes_pushed == 'true'
         run: "sleep 10"
-
       - name: 9. Create AEM Demo Page
         if: steps.main_script.outputs.changes_pushed == 'true'
         run: |
           curl --fail-with-body "${AEM_URL}/bin/wcmcommand" -u "${AEM_USERNAME}:${AEM_PASSWORD}" -H 'Content-Type: application/x-www-form-urlencoded; charset=UTF-8' --data-raw "_charset_=UTF-8&cmd=copyPage&srcPath=${AEM_SRC_PATH}&destParentPath=${AEM_DEST_PARENT_PATH}&before=&destName=${{ steps.sanitize.outputs.aem_page_name }}&shallow=false"
-
       - name: 10. Wait for AEM Repository to Settle
         if: steps.main_script.outputs.changes_pushed == 'true'
         run: |
           echo "Waiting 5 seconds for AEM to finalize page creation..."
           sleep 5
-
       - name: 11. Update AEM Page Title
         if: steps.main_script.outputs.changes_pushed == 'true'
         run: |
@@ -176,7 +170,8 @@ jobs:
 
       - name: 13. Review, Fix, and Validate Loop
         id: review_loop
-        if: steps.add_component_step.outputs.changes_pushed == 'true'
+        # --- CORRECTED: Point to the correct step's output ---
+        if: steps.main_script.outputs.changes_pushed == 'true'
         shell: bash
         env:
           AEM_PAGE_NAME: ${{ steps.sanitize.outputs.aem_page_name }}
@@ -242,6 +237,7 @@ jobs:
                 echo "Deleting and recreating AEM block...";
                 curl -u "${AEM_USERNAME}:${AEM_PASSWORD}" -X POST -F':operation=delete' "$TARGET_BLOCK_URL"
                 sleep 5
+                # Re-run the logic from Step 12 by calling it directly
                 bash -c "$(sed -n '/- name: 12. Add New Component to AEM Page/,/^      - name: 13/p' "$GITHUB_ACTION_PATH" | sed '$d' | tail -n +3)"
               else
                 echo "AI suggested fixes, but no file changes were made. Assuming review passed."; REVIEW_PASSED=true; break
