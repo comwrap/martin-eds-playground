@@ -163,7 +163,6 @@ jobs:
         id: review_loop
         if: steps.main_script.outputs.changes_pushed == 'true'
         shell: bash
-        # CORRECTED: The complex multi-line prompt is now in the env block
         env:
           REVIEW_PROMPT_TEMPLATE: |
             You are a Senior Developer performing a QA check. Review the code, HTML, and screenshots.
@@ -180,6 +179,7 @@ jobs:
             %SCRAPED_DOM%
         run: |
           set -e
+          # --- CORRECTED: All variables are now defined inside the run block ---
           REVIEW_PASSED=false
           FEATURE_BRANCH_NAME="feature/$TICKET_ID"
           AEM_PAGE_NAME="${{ steps.sanitize.outputs.aem_page_name }}"
@@ -209,7 +209,6 @@ jobs:
               done
             fi
             
-            # CORRECTED: Use the env var and replace placeholders
             FINAL_REVIEW_PROMPT="${REVIEW_PROMPT_TEMPLATE/'%CODEX_PROMPT%'/"$CODEX_PROMPT"}"
             FINAL_REVIEW_PROMPT="${FINAL_REVIEW_PROMPT/'%CODE_CONTEXT%'/"$CODE_CONTEXT"}"
             FINAL_REVIEW_PROMPT="${FINAL_REVIEW_PROMPT/'%SCRAPED_DOM%'/"$SCRAPED_DOM"}"
