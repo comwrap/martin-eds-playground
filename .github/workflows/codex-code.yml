@@ -148,30 +148,14 @@ jobs:
           COMPONENT_NAME=$(basename "$(dirname "$DEMO_FILE_PATH")")
           COMPILED_MODELS_FILE="component-models.json"
           
-          # --- DYNAMICALLY DETERMINE FIELDS TO EXCLUDE ---
-          # 1. Find all partial files referenced in the source model
-          PARTIAL_PATHS=$(jq -r '.models[].fields[] | select(has("...")) | .["..."] | sub("#/fields$"; "")' "$SOURCE_MODEL_FILE_PATH")
+          # 1. Get the complete and authoritative list of all field names from the final compiled model.
+          #    This is the simple, correct approach that was previously over-engineered.
+          MODEL_FIELDS_JSON_ARRAY=$(jq -r --arg compName "$COMPONENT_NAME" '[.[] | select(.id == $compName) | .fields[].name] | unique' "$COMPILED_MODELS_FILE")
           
-          # 2. Read all field names from those partials to create an exclusion list
-          EXCLUDE_FIELDS_JSON="[]"
-          for path in $PARTIAL_PATHS; do
-            if [ -f "$path" ]; then
-              PARTIAL_FIELDS=$(jq -r '[.fields[].name]' "$path")
-              EXCLUDE_FIELDS_JSON=$(jq -s '.[0] + .[1] | unique' <(echo "$EXCLUDE_FIELDS_JSON") <(echo "$PARTIAL_FIELDS"))
-            fi
-          done
-          echo "--- Dynamically discovered fields to exclude from modelFields ---"
-          echo "$EXCLUDE_FIELDS_JSON" | jq .
-
-          # 3. Get the full list of official field names from the compiled model
-          ALL_FIELDS_JSON=$(jq -r --arg compName "$COMPONENT_NAME" '[.[] | select(.id == $compName) | .fields[].name] | unique' "$COMPILED_MODELS_FILE")
-          
-          # 4. Subtract the excluded fields from the full list to get the correct modelFields
-          MODEL_FIELDS_JSON_ARRAY=$(jq -n --argjson all "$ALL_FIELDS_JSON" --argjson exclude "$EXCLUDE_FIELDS_JSON" '$all - $exclude')
-          
-          # --- PROCEED WITH CORRECT DATA ---
+          # 2. Get the human-readable name from the source model's "title" field
           NAME_VAL=$(jq -r '.definitions[0].title' "$SOURCE_MODEL_FILE_PATH")
           
+          # 3. Assemble the metadata object
           METADATA_JSON=$(jq -n \
             --arg filter "$COMPONENT_NAME" \
             --arg model "$COMPONENT_NAME" \
@@ -179,9 +163,11 @@ jobs:
             --argjson modelFields "$MODEL_FIELDS_JSON_ARRAY" \
             '{filter: $filter, model: $model, name: $name, modelFields: $modelFields}')
             
+          # 4. Read the AI's content and discover the image field name
           AI_CONTENT_JSON=$(cat "$DEMO_FILE_PATH")
           IMAGE_FIELD_NAME=$(jq -r --arg compName "$COMPONENT_NAME" '.[] | select(.id == $compName) | .fields[] | select(.component == "reference") | .name' "$COMPILED_MODELS_FILE" | head -n 1)
 
+          # 5. Merge, finalize, and post to AEM
           FINAL_JSON=$(jq -n --argjson ai_content "$AI_CONTENT_JSON" --argjson meta "$METADATA_JSON" '$ai_content + $meta' | jq --arg fieldName "$IMAGE_FIELD_NAME" 'if $fieldName and $fieldName != "" then .[$fieldName] = "/content/dam/aco/content-at-scale.png" else . end')
 
           echo "--- Final JSON Object for AEM ---"
