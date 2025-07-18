@@ -52,7 +52,7 @@ jobs:
 
     steps:
       - name: 1. Install System Dependencies
-        run: apt-get update -y && apt-get install -y --no-install-recommends curl jq sed file realpath
+        run: apt-get update -y && apt-get install -y --no-install-recommends curl jq sed file
       - name: 2. Checkout Repository
         uses: actions/checkout@v4
         with:
