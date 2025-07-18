@@ -52,23 +52,20 @@ jobs:
 
     steps:
       - name: 1. Install System Dependencies
-        run: apt-get update -y && apt-get install -y --no-install-recommends curl jq sed file realpath
-
+        run: |
+          apt-get update -y && apt-get install -y --no-install-recommends curl jq sed file
       - name: 2. Checkout Repository
         uses: actions/checkout@v4
         with:
           token: ${{ env.CODEX_PUSH_TOKEN }}
           fetch-depth: 0
-
       - name: 3. Configure Git and Install Codex CLI
         run: |
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "actions-bot@github.com"
           npm install -g @openai/codex
-
       - name: 4. Install Project Dependencies
         run: npm install
-
       - name: 5. Set Workspace Permissions for Non-Root User
         run: |
           chown -R node:node "$GITHUB_WORKSPACE"
@@ -81,10 +78,10 @@ jobs:
             ---
             **Additional Task: Create Demo Data**
             After creating the component files as requested above, you MUST ALSO perform the following action:
-            1.  Create a new file named exactly `demo_data.json` inside the new component's directory.
-            2.  The content of this file MUST be a single, raw JSON object.
-            3.  The keys of the JSON object must correspond to the `name` properties of the fields defined in the component's model file you created.
-            4.  Populate the JSON with realistic, high-quality demo content suitable for the component.
+            1. Create a new file named `demo_data.json` inside the new component's directory.
+            2. The content MUST be a single, raw JSON object.
+            3. The keys must correspond to the `name` properties of the fields in the component's model file.
+            4. Populate the JSON with realistic, high-quality demo content.
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           FEATURE_BRANCH_NAME="feature/$TICKET_ID"
@@ -201,7 +198,6 @@ jobs:
           REVIEW_PASSED=false
           FEATURE_BRANCH_NAME="feature/$TICKET_ID"
           
-          # All variables are defined inside the run block for safety
           PREVIEW_URL="${AEM_URL}${AEM_DEST_PARENT_PATH}/${AEM_PAGE_NAME}.html?ref=${FEATURE_BRANCH_NAME}"
           ENCODED_URL=$(jq -rn --arg url "$PREVIEW_URL" '$url|@uri')
           AUTH_HEADER=$(echo -n "${AEM_USERNAME}:${AEM_PASSWORD}" | base64)
