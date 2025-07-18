@@ -1,0 +1,100 @@
+.commerce-teaser {
+  display: flex;
+  flex-direction: column;
+  background: rgb(var(--background-color, 255, 255, 255));
+  border-radius: 8px;
+  box-shadow: 0 2px 8px #0000000a;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.commerce-teaser:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 16px #00000014;
+}
+
+.commerce-teaser-image {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+}
+
+.commerce-teaser-image picture,
+.commerce-teaser-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.commerce-teaser-content {
+  padding: var(--spacing-m);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-s);
+}
+
+.commerce-teaser-title {
+  font-size: var(--heading-font-size-m);
+  font-weight: var(--font-bold);
+  margin: 0;
+  color: rgb(var(--text-color, 0, 0, 0));
+}
+
+.commerce-teaser-price {
+  font-size: calc(var(--heading-font-size-s) * 1.2);
+  font-weight: var(--font-bold);
+  color: rgb(var(--accent-color, 230, 0, 35));
+  margin: 0;
+}
+
+.commerce-teaser-description {
+  font-size: var(--body-font-size-s);
+  margin: 0;
+  color: rgb(var(--text-color, 0, 0, 0));
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.commerce-teaser-button {
+  margin-top: auto;
+}
+
+.commerce-teaser-button .button {
+  display: inline-block;
+  padding: var(--btn-padding, 12px 24px);
+  background: rgb(var(--button-primary, 0, 87, 255));
+  color: rgb(var(--on-button-primary, 255, 255, 255));
+  border-radius: 4px;
+  text-decoration: none;
+  font-weight: var(--font-bold);
+  transition: background 0.3s, color 0.3s, transform 0.2s;
+}
+
+.commerce-teaser-button .button:hover,
+.commerce-teaser-button .button:focus {
+  background: rgb(var(--button-primary-hover, 0, 74, 218));
+  color: rgb(var(--on-button-primary, 255, 255, 255));
+  transform: translateY(-2px);
+}
+
+@media (min-width: 768px) {
+  .commerce-teaser {
+    flex-direction: row;
+    max-height: 300px;
+  }
+
+  .commerce-teaser-image {
+    flex: 0 0 40%;
+    aspect-ratio: 4 / 3;
+  }
+
+  .commerce-teaser-content {
+    flex: 1;
+  }
+}
+

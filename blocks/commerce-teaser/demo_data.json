@@ -1,0 +1,11 @@
+{
+  "commerce-teaser-title": "Premium Leather Wallet",
+  "commerce-teaser-description": "Crafted from full-grain leather, this wallet keeps your essentials organized in style.",
+  "commerce-teaser-image": "/media_1234.jpg",
+  "commerce-teaser-price": "$79.99",
+  "custom-button-link": "https://example.com/products/leather-wallet",
+  "custom-button-label": "Shop Now",
+  "custom-button-target": "_blank",
+  "classes": ""
+}
+
