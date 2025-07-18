@@ -133,8 +133,11 @@ jobs:
         if: steps.main_script.outputs.changes_pushed == 'true'
         run: |
           curl --fail-with-body "${AEM_URL}${AEM_DEST_PARENT_PATH}/${{ steps.sanitize.outputs.aem_page_name }}/jcr:content" -u "${AEM_USERNAME}:${AEM_PASSWORD}" -H 'Content-Type: application/x-www-form-urlencoded; charset=UTF-8' --data-raw "jcr:title=${{ steps.sanitize.outputs.aem_page_name }}"
-
-      - name: 11. Add New Component to AEM Page from Demo Data
+      - name: 11. Update AEM Page Title
+        if: steps.main_script.outputs.changes_pushed == 'true'
+        run: |
+          curl --fail-with-body "${AEM_URL}${AEM_DEST_PARENT_PATH}/${{ steps.sanitize.outputs.aem_page_name }}/jcr:content" -u "${AEM_USERNAME}:${AEM_PASSWORD}" -H 'Content-Type: application/x-www-form-urlencoded; charset=UTF-8' --data-raw "jcr:title=${{ steps.sanitize.outputs.aem_page_name }}"
+      - name: 12. Add New Component to AEM Page from Demo Data
         if: steps.main_script.outputs.changes_pushed == 'true'
         shell: bash
         run: |
@@ -148,30 +151,18 @@ jobs:
           COMPONENT_NAME=$(basename "$(dirname "$DEMO_FILE_PATH")")
           COMPILED_MODELS_FILE="component-models.json"
           
-          # 1. Get the complete and authoritative list of all field names from the final compiled model.
-          #    This is the simple, correct approach that was previously over-engineered.
-          MODEL_FIELDS_JSON_ARRAY=$(jq -r --arg compName "$COMPONENT_NAME" '[.[] | select(.id == $compName) | .fields[].name] | unique' "$COMPILED_MODELS_FILE")
+          ALL_FIELDS_JSON=$(jq -r --arg compName "$COMPONENT_NAME" '[.[] | select(.id == $compName) | .fields[].name] | unique' "$COMPILED_MODELS_FILE")
+          # Filter out the specific button fields that should not be in modelFields
+          MODEL_FIELDS_JSON_ARRAY=$(echo "$ALL_FIELDS_JSON" | jq '[.[] | select(. as $name | $name != "custom-button-link" and $name != "custom-button-target")]')
           
-          # 2. Get the human-readable name from the source model's "title" field
           NAME_VAL=$(jq -r '.definitions[0].title' "$SOURCE_MODEL_FILE_PATH")
           
-          # 3. Assemble the metadata object
-          METADATA_JSON=$(jq -n \
-            --arg filter "$COMPONENT_NAME" \
-            --arg model "$COMPONENT_NAME" \
-            --arg name "$NAME_VAL" \
-            --argjson modelFields "$MODEL_FIELDS_JSON_ARRAY" \
-            '{filter: $filter, model: $model, name: $name, modelFields: $modelFields}')
+          METADATA_JSON=$(jq -n --arg filter "$COMPONENT_NAME" --arg model "$COMPONENT_NAME" --arg name "$NAME_VAL" --argjson modelFields "$MODEL_FIELDS_JSON_ARRAY" '{filter: $filter, model: $model, name: $name, modelFields: $modelFields}')
             
-          # 4. Read the AI's content and discover the image field name
           AI_CONTENT_JSON=$(cat "$DEMO_FILE_PATH")
           IMAGE_FIELD_NAME=$(jq -r --arg compName "$COMPONENT_NAME" '.[] | select(.id == $compName) | .fields[] | select(.component == "reference") | .name' "$COMPILED_MODELS_FILE" | head -n 1)
 
-          # 5. Merge, finalize, and post to AEM
           FINAL_JSON=$(jq -n --argjson ai_content "$AI_CONTENT_JSON" --argjson meta "$METADATA_JSON" '$ai_content + $meta' | jq --arg fieldName "$IMAGE_FIELD_NAME" 'if $fieldName and $fieldName != "" then .[$fieldName] = "/content/dam/aco/content-at-scale.png" else . end')
-
-          echo "--- Final JSON Object for AEM ---"
-          echo "$FINAL_JSON" | jq .
 
           FORM_DATA=$(echo "$FINAL_JSON" | jq -r 'to_entries | .[] | if .value | type == "array" then .key as $k | .value[] | ($k|@uri) + "=" + (. | @uri) else (.key|@uri) + "=" + (.value|tostring|@uri) end' | paste -sd'&')
           SLING_RESOURCETYPE="core/franklin/components/block/v1/block"
