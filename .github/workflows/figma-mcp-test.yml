@@ -1,0 +1,76 @@
+name: Figma MCP Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-figma-codex-test:
+    runs-on: ubuntu-latest
+    container: node:latest
+
+    env:
+      # Ensure these secrets are set in your repository's Settings > Secrets and variables > Actions
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      FIGMA_ACCESS_TOKEN: ${{ secrets.FIGMA_ACCESS_TOKEN }}
+      
+      # The full prompt for the AI
+      CODEX_PROMPT: |
+        Create the following figma design to a fully working component.
+        You see Header with a swtich, language switch, search icon and login icon
+        Also you see that it is a Carousel and a contact us banner on the right.
+        Make sure to get the layout, colors, images and
+        everything exactly the same thing as the figma design.
+        Please use your reasoning capabilities to make it real.
+
+        https://www.figma.com/design/WfDJmjg0PeljfcTeLzqu5U/QNX---Design-System?node-id=2577-10468&t=YFC0I8QRWo0um3zF-4
+
+        Use the Figma MCP Server to get the files and to download all images.
+
+        please create that as javascript decorator. 
+        I need a js,css and html file.
+
+        1: Deeply analyze the figma and really think about the designs.
+        2: Check the depth of the figma design and get as deep as you can (until there is no more depth)
+        3. Code it
+
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+        # Checks out the code so codex has a place to write files
+
+      - name: 2. Install Codex CLI
+        run: |
+          echo "Installing OpenAI Codex CLI..."
+          npm install -g @openai/codex
+          echo "Codex CLI installed."
+
+      - name: 3. Create Codex Config for Figma MCP
+        # This step only runs if the FIGMA_ACCESS_TOKEN secret is present
+        if: env.FIGMA_ACCESS_TOKEN != ''
+        run: |
+          echo "Setting up Figma MCP server for Codex CLI..."
+          mkdir -p ~/.codex
+          # This creates the configuration file needed for the Figma MCP
+          cat <<EOF > ~/.codex/config.toml
+          [mcp_servers.figma]
+          command = "npx"
+          args = ["-y", "figma-developer-mcp", "--figma-api-key=${FIGMA_ACCESS_TOKEN}", "--stdio"]
+          EOF
+          echo "Codex config for Figma MCP created successfully."
+          echo "--- Verifying config file ---"
+          cat ~/.codex/config.toml
+          echo "-----------------------------"
+      
+      - name: 4. Execute Codex with Figma Prompt
+        run: |
+          echo "Executing Codex CLI with Figma prompt..."
+          # The --verbose flag is crucial for seeing if the MCP server is being launched
+          codex exec --verbose -m o3 "$CODEX_PROMPT"
+
+      - name: 5. Show Generated Files
+        run: |
+          echo "-------------------------------------"
+          echo "Codex execution finished. Listing all generated files..."
+          ls -R
+          echo "-------------------------------------"
+          echo "Test complete. Check the logs above to see the output from Codex and the list of files."
