@@ -65,7 +65,7 @@ jobs:
         run: |
           echo "Executing Codex CLI with Figma prompt..."
           # The --verbose flag is crucial for seeing if the MCP server is being launched
-          codex exec --verbose -m o3 "$CODEX_PROMPT"
+          codex exec --full-auto -m o3 "$CODEX_PROMPT"
 
       - name: 5. Show Generated Files
         run: |
