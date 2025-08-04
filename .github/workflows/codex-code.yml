@@ -30,6 +30,9 @@ jobs:
     container: node:latest
 
     env:
+      # ==> ADD YOUR FIGMA TOKEN AS A SECRET <==
+      FIGMA_ACCESS_TOKEN: ${{ secrets.FIGMA_ACCESS_TOKEN }}
+      
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       N8N_MR_WEBHOOK_URL: ${{ secrets.N8N_PR_WEBHOOK_URL }}
       JIRA_API_USER: ${{ secrets.JIRA_API_USER }}
@@ -63,13 +66,27 @@ jobs:
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "actions-bot@github.com"
           npm install -g @openai/codex
-      - name: 4. Install Project Dependencies
+          
+      # ==> NEW STEP TO CONFIGURE FIGMA MCP <==
+      - name: 4. Create Codex Config for Figma MCP
+        if: env.FIGMA_ACCESS_TOKEN != ''
+        run: |
+          echo "Setting up Figma MCP server for Codex CLI..."
+          mkdir -p ~/.codex
+          cat <<EOF > ~/.codex/config.toml
+          [mcp_servers.figma]
+          command = "npx"
+          args = ["-y", "figma-developer-mcp", "--figma-api-key=${FIGMA_ACCESS_TOKEN}", "--stdio"]
+          EOF
+          echo "Codex config for Figma MCP created successfully."
+
+      - name: 5. Install Project Dependencies
         run: npm install
-      - name: 5. Set Workspace Permissions for Non-Root User
+      - name: 6. Set Workspace Permissions for Non-Root User
         run: |
           chown -R node:node "$GITHUB_WORKSPACE"
 
-      - name: 6. Execute Main AI, Build, and Git Logic
+      - name: 7. Execute Main AI, Build, and Git Logic
         id: main_script
         shell: bash
         env:
@@ -101,6 +118,7 @@ jobs:
               fi
             done
           fi
+          # The codex command now automatically uses the Figma MCP server if a figma.com URL is in the prompt
           codex exec "${CODEX_CMD_ARGS[@]}" "$FINAL_PROMPT"
           rm -f jira_dl_image_*
           echo "Compiling EDS Models..."
@@ -116,23 +134,20 @@ jobs:
             echo "changes_pushed=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: 7. Sanitize Ticket ID for AEM
+      # --- All subsequent steps (8-14) remain the same ---
+      - name: 8. Sanitize Ticket ID for AEM
         id: sanitize
         if: steps.main_script.outputs.changes_pushed == 'true'
         run: |
           SANITIZED_NAME=$(echo "${TICKET_ID}" | sed 's/\//-/g')
           echo "aem_page_name=$SANITIZED_NAME" >> $GITHUB_OUTPUT
-      - name: 8. Wait for EDS Deployment
+      - name: 9. Wait for EDS Deployment
         if: steps.main_script.outputs.changes_pushed == 'true'
         run: "sleep 10"
-      - name: 9. Create AEM Demo Page
+      - name: 10. Create AEM Demo Page
         if: steps.main_script.outputs.changes_pushed == 'true'
         run: |
           curl --fail-with-body "${AEM_URL}/bin/wcmcommand" -u "${AEM_USERNAME}:${AEM_PASSWORD}" -H 'Content-Type: application/x-www-form-urlencoded; charset=UTF-8' --data-raw "_charset_=UTF-8&cmd=copyPage&srcPath=${AEM_SRC_PATH}&destParentPath=${AEM_DEST_PARENT_PATH}&before=&destName=${{ steps.sanitize.outputs.aem_page_name }}&shallow=false"
-      - name: 10. Update AEM Page Title
-        if: steps.main_script.outputs.changes_pushed == 'true'
-        run: |
-          curl --fail-with-body "${AEM_URL}${AEM_DEST_PARENT_PATH}/${{ steps.sanitize.outputs.aem_page_name }}/jcr:content" -u "${AEM_USERNAME}:${AEM_PASSWORD}" -H 'Content-Type: application/x-www-form-urlencoded; charset=UTF-8' --data-raw "jcr:title=${{ steps.sanitize.outputs.aem_page_name }}"
       - name: 11. Update AEM Page Title
         if: steps.main_script.outputs.changes_pushed == 'true'
         run: |
