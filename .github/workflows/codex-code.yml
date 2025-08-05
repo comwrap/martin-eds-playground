@@ -105,6 +105,7 @@ jobs:
             4.  Populate the JSON with realistic, high-quality demo content suitable for the component.
 
             **Additional Task: Connect to Figma**
+            Most Important Rule: If there is a Figma Link you must (i force you to!!!) look at it. Use your MCP Server to connect to it (~/.codex/config.toml)
             Run this rule only when you find a Figma Link (https://www.figma.com/) in the Ticket description:
             Always begin by calling these tools **in order**:
             1. `get_variable_defs` on the target node  
