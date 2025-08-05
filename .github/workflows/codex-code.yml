@@ -103,6 +103,27 @@ jobs:
             2.  The content of this file MUST be a single, raw JSON object. Do not include any explanations or markdown formatting.
             3.  The keys of the JSON object must correspond to the `name` properties of the fields defined in the component's model file you created.
             4.  Populate the JSON with realistic, high-quality demo content suitable for the component.
+
+            **Additional Task: Connect to Figma**
+            Run this rule only when you find a Figma Link (https://www.figma.com/) in the Ticket description:
+            Always begin by calling these tools **in order**:
+            1. `get_variable_defs` on the target node  
+            2. `get_code` with the argument  
+               `{ "nodeId": "<node-id>", "depth": "auto" }`  
+            
+               – Start with `depth:2`.  
+               – If any descendant layers are *not* present in the JSON, re-issue
+                 `get_code` with `depth` incremented (+1) until every child layer,
+                 style and constraint is represented **or** you reach `depth:7`.  
+               – Stop escalating depth the moment the full component hierarchy is
+                 captured (inspect the JSON’s `children` array sizes to verify).   
+            CODING RULES: 
+            1. **Design tokens first** – Use variables from step #1; never hard-code colours, fonts or spacing.  
+            2. **Respect Code Connect** – If `codeConnect` mappings exist, reuse the referenced components.  
+            3. **Layout fidelity** – Translate Figma auto-layout ⇄ CSS flexbox/grid 1-for-1.  
+            4. **Accessibility** – Semantic HTML, aria-labels where appropriate, WCAG 2.2 AA.  
+            5. **No creativity** – Do *not* alter copy, fonts, colours or spacing.  
+            7. **Chunk large outputs** – If code > 300 lines, send in numbered snippets and wait for confirmation.
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           FEATURE_BRANCH_NAME="feature/$TICKET_ID"
