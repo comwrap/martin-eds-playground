@@ -1,0 +1,28 @@
+{
+  "auto-transition": false,
+  "transition-speed": 5000,
+  "slides": [
+    {
+      "image": "https://images.unsplash.com/photo-1485579149621-3123dd979885?q=80&w=1200&auto=format&fit=crop",
+      "alt": "Autonomous vehicle dashboard",
+      "headline": "Advanced Driver Assistance",
+      "description": "Leverage high-reliability RTOS to power ADAS features from lane-keeping to collision avoidance with deterministic performance and safety certifications.",
+      "link": "https://www.example.com/solutions/adas"
+    },
+    {
+      "image": "https://images.unsplash.com/photo-1493238792000-8113da705763?q=80&w=1200&auto=format&fit=crop",
+      "alt": "Industrial robot arm on factory floor",
+      "headline": "Industrial Automation",
+      "description": "Build resilient, secure control systems that scale from edge PLCs to cloud orchestration, with real-time guarantees and long-term support.",
+      "link": "https://www.example.com/solutions/industrial-automation"
+    },
+    {
+      "image": "https://images.unsplash.com/photo-1534126416832-a88fdf2911c2?q=80&w=1200&auto=format&fit=crop",
+      "alt": "Medical monitoring device interface",
+      "headline": "Medical Devices",
+      "description": "Accelerate regulatory compliance with a microkernel architecture designed for fault isolation, proven reliability, and cybersecurity by design.",
+      "link": "https://www.example.com/solutions/medical"
+    }
+  ]
+}
+

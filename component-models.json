@@ -370,6 +370,66 @@
     ]
   },
   {
+    "id": "carousel-new",
+    "fields": [
+      {
+        "component": "boolean",
+        "name": "auto-transition",
+        "label": "Enable Auto-Transition",
+        "valueType": "boolean",
+        "value": false
+      },
+      {
+        "component": "number",
+        "name": "transition-speed",
+        "label": "Transition Speed (ms)",
+        "description": "Minimum 1000 ms",
+        "valueType": "number",
+        "value": 5000
+      }
+    ]
+  },
+  {
+    "id": "carousel-new-slide",
+    "fields": [
+      {
+        "component": "reference",
+        "name": "image",
+        "label": "Image",
+        "valueType": "string",
+        "multi": false
+      },
+      {
+        "component": "text",
+        "name": "alt",
+        "label": "Alt Text",
+        "value": "",
+        "valueType": "string"
+      },
+      {
+        "component": "text",
+        "name": "headline",
+        "label": "Headline",
+        "value": "",
+        "valueType": "string"
+      },
+      {
+        "component": "richtext",
+        "name": "description",
+        "label": "Description",
+        "value": "",
+        "valueType": "string"
+      },
+      {
+        "component": "text",
+        "name": "link",
+        "label": "Link (URL)",
+        "value": "",
+        "valueType": "string"
+      }
+    ]
+  },
+  {
     "id": "carousel",
     "fields": [
       {

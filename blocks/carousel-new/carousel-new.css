@@ -1,0 +1,154 @@
+.carousel-new {
+  position: relative;
+  width: 100%;
+}
+
+.carousel-new[role="region"] {
+  outline: none;
+}
+
+.carousel-new .cn-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-m);
+  margin-bottom: var(--spacing-m);
+}
+
+.carousel-new .cn-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-s);
+}
+
+.carousel-new .cn-button {
+  appearance: none;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--overlay-background-color);
+  color: rgb(var(--on-background));
+}
+
+.carousel-new .cn-button:hover,
+.carousel-new .cn-button:focus-visible {
+  background: var(--overlay-background-hover-color);
+  outline: 2px solid rgb(var(--button-primary));
+  outline-offset: 2px;
+}
+
+.carousel-new .cn-dots {
+  list-style: none;
+  display: flex;
+  gap: var(--spacing-s);
+  margin: 0;
+  padding: 0;
+}
+
+.carousel-new .cn-dots li button {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 0;
+  background: rgb(var(--on-background));
+  opacity: 0.4;
+}
+
+.carousel-new .cn-dots li button[aria-current="true"] {
+  opacity: 1;
+}
+
+.carousel-new .cn-viewport {
+  overflow: hidden;
+}
+
+.carousel-new .cn-track {
+  display: flex;
+  gap: var(--spacing-l);
+  will-change: transform;
+  transform: translateX(0);
+  transition: transform 400ms ease;
+}
+
+.carousel-new .cn-slide {
+  flex: 0 0 100%;
+  list-style: none;
+}
+
+/* Desktop: 2 slides with gutter */
+@media (width >= 1024px) {
+  .carousel-new .cn-slide {
+    flex-basis: calc(50% - (var(--spacing-l) / 2));
+  }
+}
+
+/* Tablet: 1 slide with gutter */
+@media (768px <= width < 1024px) {
+  .carousel-new .cn-slide {
+    flex-basis: calc(100% - var(--spacing-l));
+  }
+}
+
+.carousel-new .cn-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-m);
+  background: var(--background-color);
+  border: 1px solid rgb(var(--dark));
+  border-color: rgba(var(--dark), 0.12);
+  border-radius: 12px;
+  overflow: clip;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+.carousel-new .cn-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+}
+
+.carousel-new .cn-media {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: rgba(var(--dark), 0.04);
+}
+
+.carousel-new .cn-media picture,
+.carousel-new .cn-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.carousel-new .cn-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-s);
+  padding: var(--spacing-l);
+}
+
+.carousel-new .cn-body h3 {
+  margin: 0;
+}
+
+.carousel-new .cn-body p {
+  margin: 0;
+}
+
+.carousel-new .cn-cta {
+  margin-top: var(--spacing-s);
+}
+
+.carousel-new .cn-cta a.button {
+  border-color: rgb(var(--button-secondary));
+}
+
+.carousel-new :focus-visible {
+  outline: 2px solid rgb(var(--button-primary));
+  outline-offset: 2px;
+}
+

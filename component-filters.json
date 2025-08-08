@@ -20,6 +20,7 @@
       "fragment",
       "articlefeed",
       "carousel",
+      "carousel-new",
       "accordion",
       "download",
       "teaser",
@@ -40,6 +41,12 @@
     "id": "cards",
     "components": [
       "card"
+    ]
+  },
+  {
+    "id": "carousel-new",
+    "components": [
+      "carousel-new-slide"
     ]
   },
   {
